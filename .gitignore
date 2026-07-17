@@ -46,3 +46,7 @@ app.*.map.json
 
 # Kotlin compiler cache
 .kotlin/
+
+# Environment variables (dados sensíveis, ex: URL da API) — use .env.example
+# como referência para criar o seu.
+.env

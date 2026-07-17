@@ -1,10 +1,11 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../models/models.dart';
 import 'dio_client.dart';
 
 class ApiRoutes {
-  static const String baseUrl = 'https://192.168.18.152/babybox';
+  static String get baseUrl => dotenv.env['API_BASE_URL']!;
 
   // Auth
   static Future<Response> register(Map<String, dynamic> body) async {
