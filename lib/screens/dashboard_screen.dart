@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../state/auth_controller.dart';
 import '../state/dashboard_controller.dart';
+import '../state/font_scale_controller.dart';
 import '../state/products_controller.dart';
 import '../state/sales_controller.dart';
 import '../state/transactions_controller.dart';
@@ -1074,6 +1075,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 24),
+
+            // Card de tamanho da fonte
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 16,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  width: 1.5,
+                ),
+              ),
+              child: Consumer<FontScaleController>(
+                builder: (context, fontScale, _) {
+                  return Row(
+                    children: [
+                      const Icon(
+                        Icons.text_fields_rounded,
+                        color: AppTheme.primaryColor,
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Tamanho da fonte',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: fontScale.canDecrease
+                            ? fontScale.decrease
+                            : null,
+                        icon: const Icon(Icons.remove_circle_outline),
+                        color: AppTheme.primaryColor,
+                        tooltip: 'Diminuir fonte',
+                      ),
+                      Text(
+                        '${fontScale.step}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        onPressed: fontScale.canIncrease
+                            ? fontScale.increase
+                            : null,
+                        icon: const Icon(Icons.add_circle_outline),
+                        color: AppTheme.primaryColor,
+                        tooltip: 'Aumentar fonte',
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
 
             // Lista de Opções da Aba Mais
             Container(

@@ -16,6 +16,8 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final authController = AuthController();
+  final fontScaleController = FontScaleController();
+  unawaited(fontScaleController.load());
 
   // Token expirado ou rejeitado pela API (401) em qualquer chamada: limpa a
   // sessão (estado + storage) e joga o usuário de volta pro login, de onde
@@ -31,7 +33,12 @@ Future<void> main() async {
   // runApp acontece antes do bootstrap terminar: assim a UI (splash do
   // MyApp) aparece na hora, mesmo que a API demore ou esteja inacessível,
   // em vez de deixar a tela nativa travada esperando esse await resolver.
-  runApp(MyApp(authController: authController));
+  runApp(
+    MyApp(
+      authController: authController,
+      fontScaleController: fontScaleController,
+    ),
+  );
 
   await authController.bootstrap();
 
@@ -44,16 +51,19 @@ Future<void> main() async {
 }
 
 class MyApp extends StatelessWidget {
-  MyApp({super.key, AuthController? authController})
-    : authController = authController ?? AuthController();
+  MyApp({super.key, AuthController? authController, FontScaleController? fontScaleController})
+    : authController = authController ?? AuthController(),
+      fontScaleController = fontScaleController ?? FontScaleController();
 
   final AuthController authController;
+  final FontScaleController fontScaleController;
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: authController),
+        ChangeNotifierProvider.value(value: fontScaleController),
         ChangeNotifierProvider(create: (_) => ProductsController()),
         ChangeNotifierProvider(create: (_) => SalesController()),
         ChangeNotifierProvider(create: (_) => TransactionsController()),
@@ -72,6 +82,15 @@ class MyApp extends StatelessWidget {
           GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: const [Locale('pt', 'BR')],
+        builder: (context, child) {
+          final scale = context.watch<FontScaleController>().scale;
+          return MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(scale)),
+            child: child!,
+          );
+        },
         home: AnimatedBuilder(
           animation: authController,
           builder: (context, _) {
