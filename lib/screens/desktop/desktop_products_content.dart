@@ -27,6 +27,7 @@ class _DesktopProductsContentState extends State<DesktopProductsContent> {
   final _priceController = TextEditingController();
   final _costController = TextEditingController();
   int _stock = 0;
+  bool _stockRequired = true;
   bool _isSaving = false;
   bool _isDeleting = false;
   Product? _editingProduct;
@@ -64,6 +65,7 @@ class _DesktopProductsContentState extends State<DesktopProductsContent> {
           ? ''
           : formatCurrencyValue(product.cost!);
       _stock = product.stock;
+      _stockRequired = product.stockRequired;
     });
   }
 
@@ -71,6 +73,7 @@ class _DesktopProductsContentState extends State<DesktopProductsContent> {
     setState(() {
       _editingProduct = null;
       _stock = 0;
+      _stockRequired = true;
     });
     _nameController.clear();
     _priceController.clear();
@@ -176,7 +179,8 @@ class _DesktopProductsContentState extends State<DesktopProductsContent> {
       'cost': _costController.text.trim().isEmpty
           ? null
           : parseCurrencyValue(_costController.text),
-      'stock': _stock,
+      'stock': _stockRequired ? _stock : 0,
+      'stockRequired': _stockRequired,
     };
     final editingProduct = _editingProduct;
     final success = editingProduct != null
@@ -214,6 +218,7 @@ class _DesktopProductsContentState extends State<DesktopProductsContent> {
     _costController.clear();
     setState(() {
       _stock = 0;
+      _stockRequired = true;
       _editingProduct = null;
     });
     _formKey.currentState!.reset();
@@ -321,16 +326,35 @@ class _DesktopProductsContentState extends State<DesktopProductsContent> {
           ],
         ),
         const SizedBox(height: 24),
-        QuantityStepper(
-          label: 'Quantidade em estoque',
-          tooltip: 'Quantidade disponível deste produto para venda.',
-          value: _stock,
-          onIncrement: _incrementStock,
-          onDecrement: _decrementStock,
-          onChanged: _setStock,
-          width: 200,
-          padding: const EdgeInsets.all(6),
+        CheckboxListTile(
+          value: _stockRequired,
+          onChanged: (value) =>
+              setState(() => _stockRequired = value ?? true),
+          title: const Text(
+            'Quantidade obrigatória',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+          subtitle: const Text(
+            'Controla o estoque deste produto e exige a quantidade ao '
+            'cadastrar e vender.',
+          ),
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          activeColor: AppTheme.primaryColor,
         ),
+        if (_stockRequired) ...[
+          const SizedBox(height: 8),
+          QuantityStepper(
+            label: 'Quantidade em estoque',
+            tooltip: 'Quantidade disponível deste produto para venda.',
+            value: _stock,
+            onIncrement: _incrementStock,
+            onDecrement: _decrementStock,
+            onChanged: _setStock,
+            width: 200,
+            padding: const EdgeInsets.all(6),
+          ),
+        ],
       ],
     );
   }
@@ -385,7 +409,7 @@ class _DesktopProductsContentState extends State<DesktopProductsContent> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '${p.stock} un.',
+                            p.stockRequired ? '${p.stock} un.' : '—',
                             style: const TextStyle(
                               fontWeight: FontWeight.w800,
                               color: AppTheme.primaryColor,

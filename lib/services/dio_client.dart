@@ -15,7 +15,19 @@ class ApiException implements Exception {
 }
 
 class DioClient {
-  DioClient._internal() : _dio = Dio(BaseOptions(baseUrl: ApiRoutes.baseUrl)) {
+  DioClient._internal()
+    : _dio = Dio(
+        BaseOptions(
+          baseUrl: ApiRoutes.baseUrl,
+          // Sem isso, uma requisição sem resposta (sem internet, servidor
+          // fora do ar, IP da LAN inalcançável) fica pendurada pelo timeout
+          // padrão do SO — na prática, "carregando" pra sempre em vez de
+          // cair rápido no tratamento de erro de conectividade.
+          connectTimeout: const Duration(seconds: 10),
+          sendTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 10),
+        ),
+      ) {
     configureHttpClient(_dio);
     _dio.interceptors.add(
       InterceptorsWrapper(

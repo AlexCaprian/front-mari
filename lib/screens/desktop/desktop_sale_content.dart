@@ -17,7 +17,6 @@ const _paymentMethodLabels = {
   PaymentMethod.dinheiro: 'Dinheiro',
   PaymentMethod.pix: 'Pix',
   PaymentMethod.cartao: 'Cartão',
-  PaymentMethod.fiado: 'Fiado',
 };
 
 /// Painel "Vendas" do modo desktop: formulário de nova venda com o total

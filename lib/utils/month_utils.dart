@@ -28,6 +28,16 @@ const monthAbbrev = [
   'Dez',
 ];
 
+/// Mês atual (`YYYY-MM`) no fuso horário local do aparelho — usado como
+/// padrão quando uma tela não escolhe um mês explícito (ex: Início), pra não
+/// depender do "mês atual" calculado em UTC pelo backend (que diverge do
+/// mês local nas últimas horas do último dia do mês em fusos atrás de UTC,
+/// como o horário de Brasília).
+String currentMonthLocal() {
+  final now = DateTime.now();
+  return '${now.year}-${now.month.toString().padLeft(2, '0')}';
+}
+
 /// Últimos [count] meses no formato `YYYY-MM` esperado pela API, do mais
 /// antigo pro mais recente (o atual é o último item).
 List<String> recentMonths({int count = 12}) {

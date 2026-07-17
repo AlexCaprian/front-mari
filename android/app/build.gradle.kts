@@ -39,6 +39,16 @@ android {
     }
 }
 
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
+                output.outputFileName.set("Mari.apk")
+            }
+        }
+    }
+}
+
 flutter {
     source = "../.."
 }

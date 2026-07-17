@@ -98,7 +98,7 @@ class TransactionsController extends ChangeNotifier {
         type: transactionTypeFromApi(body['type'] as String),
         amount: (body['amount'] as num).toDouble(),
         category: body['category'] as String,
-        occurredAt: DateTime.parse(body['occurredAt'] as String),
+        occurredAt: DateTime.parse(body['occurredAt'] as String).toLocal(),
         createdAt: DateTime.now(),
       );
       _transactions = [transaction, ..._transactions];

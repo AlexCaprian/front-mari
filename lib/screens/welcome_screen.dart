@@ -187,7 +187,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
             // 2. Título da Aplicação
             Text(
-              'Meu Controle',
+              'Mari',
               style: Theme.of(
                 context,
               ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
@@ -412,7 +412,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           ),
           const SizedBox(height: 20),
           const Text(
-            'Meu Controle',
+            'Mari',
             style: TextStyle(
               color: Colors.white,
               fontSize: 28,

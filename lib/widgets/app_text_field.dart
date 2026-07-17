@@ -27,6 +27,7 @@ class AppTextField extends StatelessWidget {
     this.focusColor,
     this.filled = false,
     this.fillColor,
+    this.autofocus = false,
   });
 
   final String? label;
@@ -45,6 +46,7 @@ class AppTextField extends StatelessWidget {
   final Color? focusColor;
   final bool filled;
   final Color? fillColor;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +54,7 @@ class AppTextField extends StatelessWidget {
 
     final field = TextFormField(
       controller: controller,
+      autofocus: autofocus,
       keyboardType: keyboardType,
       validator: validator,
       inputFormatters: inputFormatters,

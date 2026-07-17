@@ -12,24 +12,33 @@ class AuthController extends ChangeNotifier {
   bool _isAuthenticated = false;
   bool _isLoading = false;
   String? _errorMessage;
+  // true até o bootstrap terminar. A UI usa isso pra mostrar uma splash em
+  // vez de travar o app inteiro esperando a API responder (ver main.dart).
+  bool _isBootstrapping = true;
 
   Account? get account => _account;
   bool get isAuthenticated => _isAuthenticated;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  bool get isBootstrapping => _isBootstrapping;
 
-  /// Chamado uma vez no boot do app, antes do primeiro `runApp`. Restaura o
-  /// token salvo e confirma com a API que a conta ainda existe/é válida.
+  /// Chamado uma vez no boot do app, em paralelo com o primeiro `runApp`
+  /// (não é mais esperado antes dele). Restaura o token salvo e confirma
+  /// com a API que a conta ainda existe/é válida. Se a API estiver
+  /// inacessível (sem internet, servidor fora do ar), mantém a sessão
+  /// restaurada localmente em vez de deslogar — só um 401 explícito desloga.
   Future<void> bootstrap() async {
     _isAuthenticated = await DioClient.restoreSession();
     if (_isAuthenticated) {
       try {
         _account = await ApiRoutes.getAccount();
       } on ApiException {
-        _isAuthenticated = false;
-        await DioClient.logout();
+        // Sem resposta da API: fica logado com os dados locais/cache; se o
+        // token realmente tiver expirado ou for inválido, o próximo 401 em
+        // qualquer chamada aciona o logout via onSessionExpired.
       }
     }
+    _isBootstrapping = false;
     notifyListeners();
   }
 

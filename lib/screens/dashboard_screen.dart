@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import '../widgets/app_choice_chips.dart';
 import '../widgets/async_state_view.dart';
 import '../widgets/currency_format.dart';
+import '../widgets/field_label.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/product_export_button.dart';
 import '../widgets/product_import_button.dart';
@@ -32,12 +33,25 @@ class DashboardScreen extends StatefulWidget {
 
 const _activityFilters = ['Todos', 'Ganhos', 'Despesas'];
 
+/// Resultado do bottom sheet de filtro de "Últimas movimentações": descrições
+/// selecionadas e/ou um dia específico.
+class ActivityFilterResult {
+  const ActivityFilterResult({required this.descriptions, required this.day});
+
+  final Set<String> descriptions;
+  final DateTime? day;
+}
+
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
   String _activityFilter = _activityFilters.first;
   Set<String> _selectedDescriptions = {};
+  DateTime? _selectedDay;
   bool _isDeletingProduct = false;
   bool _isProcessingActivity = false;
+
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   List<DashboardActivity> _filterActivities(List<DashboardActivity> activity) {
     Iterable<DashboardActivity> filtered = activity;
@@ -54,6 +68,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         (a) => _selectedDescriptions.contains(a.description),
       );
     }
+    final day = _selectedDay;
+    if (day != null) {
+      filtered = filtered.where((a) => _isSameDay(a.date, day));
+    }
     return filtered.toList();
   }
 
@@ -64,7 +82,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final options = {for (final a in allActivity) a.description}.toList()
       ..sort();
 
-    final result = await showModalBottomSheet<Set<String>>(
+    final result = await showModalBottomSheet<ActivityFilterResult>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -73,10 +91,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       builder: (context) => _ActivityFilterSheet(
         options: options,
         initialSelected: _selectedDescriptions,
+        initialDay: _selectedDay,
       ),
     );
     if (result == null) return;
-    setState(() => _selectedDescriptions = result);
+    setState(() {
+      _selectedDescriptions = result.descriptions;
+      _selectedDay = result.day;
+    });
   }
 
   @override
@@ -646,11 +668,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     label: 'Venda',
                     color: AppTheme.primaryColor,
                     onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const NewSaleScreen(),
-                        ),
-                      );
+                      Navigator.of(context)
+                          .push(
+                            MaterialPageRoute(
+                              builder: (context) => const NewSaleScreen(),
+                            ),
+                          )
+                          .then((_) {
+                            if (!mounted) return;
+                            context.read<DashboardController>().load();
+                          });
                     },
                   ),
                   const SizedBox(width: 12),
@@ -659,13 +686,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     label: 'Lançamentos',
                     color: AppTheme.primaryColor,
                     onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const NewTransactionScreen(
-                            isExpenseInitial: true,
-                          ),
-                        ),
-                      );
+                      Navigator.of(context)
+                          .push(
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const NewTransactionScreen(),
+                            ),
+                          )
+                          .then((_) {
+                            if (!mounted) return;
+                            context.read<DashboardController>().load();
+                          });
                     },
                   ),
                   const SizedBox(width: 12),
@@ -779,9 +810,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Text(
                   'Produtos',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -873,7 +904,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           subtitle: Padding(
                             padding: const EdgeInsets.only(top: 4.0),
                             child: Text(
-                              'Estoque: ${product.stock} un.',
+                              product.stockRequired
+                                  ? 'Estoque: ${product.stock} un.'
+                                  : 'Sem controle de estoque',
                               style: TextStyle(
                                 color: Colors.black.withValues(alpha: 0.5),
                                 fontWeight: FontWeight.bold,
@@ -1079,7 +1112,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onTap: () {
                       showAboutDialog(
                         context: context,
-                        applicationName: 'BabyBox - Meu Controle',
+                        applicationName: 'BabyBox - Mari',
                         applicationVersion: '1.0.0',
                         applicationLegalese: '© 2026 BabyBox Inc.',
                         applicationIcon: const Text(
@@ -1198,7 +1231,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildActivityFilterButton() {
-    final hasFilter = _selectedDescriptions.isNotEmpty;
+    final hasFilter =
+        _selectedDescriptions.isNotEmpty || _selectedDay != null;
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -1440,10 +1474,12 @@ class _ActivityFilterSheet extends StatefulWidget {
   const _ActivityFilterSheet({
     required this.options,
     required this.initialSelected,
+    required this.initialDay,
   });
 
   final List<String> options;
   final Set<String> initialSelected;
+  final DateTime? initialDay;
 
   @override
   State<_ActivityFilterSheet> createState() => _ActivityFilterSheetState();
@@ -1451,6 +1487,7 @@ class _ActivityFilterSheet extends StatefulWidget {
 
 class _ActivityFilterSheetState extends State<_ActivityFilterSheet> {
   late final Set<String> _selected = Set.of(widget.initialSelected);
+  late DateTime? _day = widget.initialDay;
   final _searchController = TextEditingController();
   String _query = '';
 
@@ -1489,14 +1526,83 @@ class _ActivityFilterSheetState extends State<_ActivityFilterSheet> {
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
-                if (_selected.isNotEmpty)
+                if (_selected.isNotEmpty || _day != null)
                   TextButton(
-                    onPressed: () => setState(() => _selected.clear()),
+                    onPressed: () => setState(() {
+                      _selected.clear();
+                      _day = null;
+                    }),
                     child: const Text('Limpar'),
                   ),
               ],
             ),
             const SizedBox(height: 12),
+            const FieldLabel(text: 'Dia'),
+            const SizedBox(height: 8),
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _day ?? DateTime.now(),
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime.now(),
+                  locale: const Locale('pt', 'BR'),
+                );
+                if (picked != null) setState(() => _day = picked);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: _day != null
+                        ? AppTheme.primaryColor
+                        : Colors.black.withValues(alpha: 0.12),
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today_outlined,
+                      size: 18,
+                      color: _day != null
+                          ? AppTheme.primaryColor
+                          : Colors.black.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _day == null
+                            ? 'Qualquer dia'
+                            : '${_day!.day.toString().padLeft(2, '0')}/'
+                                  '${_day!.month.toString().padLeft(2, '0')}/'
+                                  '${_day!.year}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: _day != null
+                              ? AppTheme.primaryColor
+                              : Colors.black87,
+                        ),
+                      ),
+                    ),
+                    if (_day != null)
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () => setState(() => _day = null),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        color: Colors.black.withValues(alpha: 0.5),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             TextField(
               controller: _searchController,
               onChanged: (value) => setState(() => _query = value),
@@ -1552,11 +1658,13 @@ class _ActivityFilterSheetState extends State<_ActivityFilterSheet> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(_selected),
+                onPressed: () => Navigator.of(context).pop(
+                  ActivityFilterResult(descriptions: _selected, day: _day),
+                ),
                 child: Text(
-                  _selected.isEmpty
+                  _selected.isEmpty && _day == null
                       ? 'Mostrar tudo'
-                      : 'Aplicar (${_selected.length})',
+                      : 'Aplicar',
                 ),
               ),
             ),

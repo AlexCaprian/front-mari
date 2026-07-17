@@ -111,7 +111,7 @@ class _DesktopShellState extends State<DesktopShell> {
               const SizedBox(width: 12),
               const Expanded(
                 child: Text(
-                  'Meu Controle',
+                  'Mari',
                   style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                 ),
               ),

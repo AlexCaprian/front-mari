@@ -27,7 +27,7 @@ class DashboardActivity {
 
   factory DashboardActivity.fromJson(Map<String, dynamic> json) {
     final kind = json['kind'] as String;
-    final date = DateTime.parse(json['date'] as String);
+    final date = DateTime.parse(json['date'] as String).toLocal();
     final id = json['id'] as String;
 
     if (kind == 'sale') {
@@ -76,7 +76,7 @@ class DashboardActivity {
       DashboardActivity(
         id: json['id'] as String,
         kind: json['kind'] as String,
-        date: DateTime.parse(json['date'] as String),
+        date: DateTime.parse(json['date'] as String).toLocal(),
         description: json['description'] as String,
         category: json['category'] as String,
         amount: (json['amount'] as num).toDouble(),

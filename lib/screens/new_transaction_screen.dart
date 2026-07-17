@@ -15,7 +15,7 @@ import '../widgets/loading_overlay.dart';
 class NewTransactionScreen extends StatefulWidget {
   final bool isExpenseInitial; // Define se abre inicialmente como Despesa
 
-  const NewTransactionScreen({super.key, this.isExpenseInitial = true});
+  const NewTransactionScreen({super.key, this.isExpenseInitial = false});
 
   @override
   State<NewTransactionScreen> createState() => _NewTransactionScreenState();
@@ -37,6 +37,7 @@ class _NewTransactionScreenState extends State<NewTransactionScreen> {
     'Aluguel',
     'Gasolina',
     'Carro',
+    'Almoço',
     'Outro',
   ];
 
@@ -111,8 +112,9 @@ class _NewTransactionScreenState extends State<NewTransactionScreen> {
       return;
     }
 
-    if (_selectedCategory == 'Outro' &&
-        _customCategoryController.text.trim().isEmpty) {
+    final needsCustomCategory = !_isExpense || _selectedCategory == 'Outro';
+
+    if (needsCustomCategory && _customCategoryController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Por favor, dê um nome para a categoria.'),
@@ -122,7 +124,7 @@ class _NewTransactionScreenState extends State<NewTransactionScreen> {
       return;
     }
 
-    final categoryName = _selectedCategory == 'Outro'
+    final categoryName = needsCustomCategory
         ? _customCategoryController.text.trim()
         : _selectedCategory;
 
@@ -133,6 +135,7 @@ class _NewTransactionScreenState extends State<NewTransactionScreen> {
           .apiValue,
       'amount': double.parse(_digits) / 100,
       'category': categoryName,
+      'occurredAt': DateTime.now().toUtc().toIso8601String(),
     });
 
     if (!mounted) return;
@@ -160,7 +163,7 @@ class _NewTransactionScreenState extends State<NewTransactionScreen> {
       threeMonthWindows(recentMonths()).last,
     );
 
-    final type = _isExpense ? 'Despesa' : 'Ganho extra';
+    final type = _isExpense ? 'Despesa' : 'Receita';
     final sign = _isExpense ? '-' : '+';
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -194,6 +197,7 @@ class _NewTransactionScreenState extends State<NewTransactionScreen> {
     return LoadingOverlay(
       isLoading: _isSaving,
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         appBar: AppBar(
           title: const Text('Novo lançamento'),
           leading: IconButton(
@@ -223,6 +227,35 @@ class _NewTransactionScreenState extends State<NewTransactionScreen> {
                         padding: const EdgeInsets.all(4),
                         child: Row(
                           children: [
+                            // Tab Ganho
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _isExpense = false),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: !_isExpense
+                                        ? positiveColor
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Receita',
+                                      style: TextStyle(
+                                        color: !_isExpense
+                                            ? Colors.white
+                                            : Colors.black54,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                             // Tab Despesa
                             Expanded(
                               child: GestureDetector(
@@ -242,35 +275,6 @@ class _NewTransactionScreenState extends State<NewTransactionScreen> {
                                       'Despesa',
                                       style: TextStyle(
                                         color: _isExpense
-                                            ? Colors.white
-                                            : Colors.black54,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // Tab Ganho Extra
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () => setState(() => _isExpense = false),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: !_isExpense
-                                        ? positiveColor
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      'Ganho extra',
-                                      style: TextStyle(
-                                        color: !_isExpense
                                             ? Colors.white
                                             : Colors.black54,
                                         fontWeight: FontWeight.bold,
@@ -304,26 +308,45 @@ class _NewTransactionScreenState extends State<NewTransactionScreen> {
                       ),
                       const SizedBox(height: 28),
 
-                      // 3. Grid de Categorias (Chips)
-                      AppChoiceChips<String>(
-                        label: 'Categoria',
-                        tooltip:
-                            'Categoria da despesa ou ganho extra, usada para '
-                            'organizar os relatórios.',
-                        items: _categories,
-                        labelOf: (category) => category,
-                        selected: _selectedCategory,
-                        onSelected: (category) =>
-                            setState(() => _selectedCategory = category),
-                        activeColor: activeColor,
-                      ),
-                      if (_selectedCategory == 'Outro') ...[
-                        const SizedBox(height: 16),
-                        AppTextField(
-                          label: 'Nome da categoria',
+                      // 3. Categoria: para Ganho extra é sempre um input livre;
+                      // para Despesa é o grid de chips (com input quando "Outro").
+                      if (_isExpense) ...[
+                        if (_selectedCategory == 'Outro') ...[
+                          AppTextField(
+                            label: 'Nome da categoria',
+                            tooltip:
+                                'Nome da categoria personalizada, usado quando '
+                                'nenhuma das opções acima se aplica.',
+                            controller: _customCategoryController,
+                            hintText: 'Nome da categoria',
+                            textCapitalization: TextCapitalization.sentences,
+                            autofocus: true,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                            focusColor: activeColor,
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        AppChoiceChips<String>(
+                          label: 'Categoria',
                           tooltip:
-                              'Nome da categoria personalizada, usado quando '
-                              'nenhuma das opções acima se aplica.',
+                              'Categoria da despesa ou ganho extra, usada para '
+                              'organizar os relatórios.',
+                          items: _categories,
+                          labelOf: (category) => category,
+                          selected: _selectedCategory,
+                          onSelected: (category) =>
+                              setState(() => _selectedCategory = category),
+                          activeColor: activeColor,
+                        ),
+                      ] else
+                        AppTextField(
+                          label: 'Categoria',
+                          tooltip:
+                              'Categoria do ganho extra, usada para organizar '
+                              'os relatórios.',
                           controller: _customCategoryController,
                           hintText: 'Nome da categoria',
                           textCapitalization: TextCapitalization.sentences,
@@ -333,7 +356,6 @@ class _NewTransactionScreenState extends State<NewTransactionScreen> {
                           ),
                           focusColor: activeColor,
                         ),
-                      ],
                     ],
                   ),
                 ),

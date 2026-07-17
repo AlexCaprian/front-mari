@@ -1,6 +1,6 @@
 import 'product.dart';
 
-enum PaymentMethod { dinheiro, pix, cartao, fiado }
+enum PaymentMethod { dinheiro, pix, cartao }
 
 extension PaymentMethodApi on PaymentMethod {
   String get apiValue => name;
@@ -40,7 +40,7 @@ class Sale {
     unitPrice: (json['unitPrice'] as num).toDouble(),
     total: (json['total'] as num).toDouble(),
     paymentMethod: paymentMethodFromApi(json['paymentMethod'] as String),
-    createdAt: DateTime.parse(json['createdAt'] as String),
+    createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
   );
 
   /// Corpo pra POST /sales.

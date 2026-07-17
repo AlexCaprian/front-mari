@@ -5,6 +5,7 @@ class Product {
     required this.price,
     this.cost,
     required this.stock,
+    this.stockRequired = true,
     this.photoUrl,
     required this.createdAt,
     required this.updatedAt,
@@ -15,6 +16,9 @@ class Product {
   final double price;
   final double? cost;
   final int stock;
+  // Se false, o produto não tem controle de quantidade em estoque (ex:
+  // serviços) e o campo de estoque nem aparece no cadastro/edição.
+  final bool stockRequired;
   final String? photoUrl;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -25,6 +29,7 @@ class Product {
     price: (json['price'] as num).toDouble(),
     cost: (json['cost'] as num?)?.toDouble(),
     stock: json['stock'] as int,
+    stockRequired: json['stockRequired'] as bool? ?? true,
     photoUrl: json['photoUrl'] as String?,
     createdAt: DateTime.parse(json['createdAt'] as String),
     updatedAt: DateTime.parse(json['updatedAt'] as String),
@@ -36,6 +41,7 @@ class Product {
     'price': price,
     'cost': cost,
     'stock': stock,
+    'stockRequired': stockRequired,
     'photoUrl': photoUrl,
   };
 
@@ -47,6 +53,7 @@ class Product {
     'price': price,
     'cost': cost,
     'stock': stock,
+    'stockRequired': stockRequired,
     'photoUrl': photoUrl,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),

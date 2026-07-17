@@ -28,6 +28,7 @@ class _DesktopHomeContentState extends State<DesktopHomeContent> {
   late final List<String> _months = recentMonths();
   late String _selectedMonth = _months.last;
   String _activityFilter = _activityFilters.first;
+  DateTime? _selectedDay;
 
   @override
   void initState() {
@@ -41,15 +42,35 @@ class _DesktopHomeContentState extends State<DesktopHomeContent> {
     context.read<DashboardController>().load(month: month);
   }
 
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  Future<void> _pickDay() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDay ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      locale: const Locale('pt', 'BR'),
+    );
+    if (picked != null) setState(() => _selectedDay = picked);
+  }
+
   List<DashboardActivity> _filterActivities(List<DashboardActivity> activity) {
+    Iterable<DashboardActivity> filtered = activity;
     switch (_activityFilter) {
       case 'Ganhos':
-        return activity.where((a) => a.amount >= 0).toList();
+        filtered = filtered.where((a) => a.amount >= 0);
+        break;
       case 'Despesas':
-        return activity.where((a) => a.amount < 0).toList();
-      default:
-        return activity;
+        filtered = filtered.where((a) => a.amount < 0);
+        break;
     }
+    final day = _selectedDay;
+    if (day != null) {
+      filtered = filtered.where((a) => _isSameDay(a.date, day));
+    }
+    return filtered.toList();
   }
 
   @override
@@ -131,13 +152,20 @@ class _DesktopHomeContentState extends State<DesktopHomeContent> {
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
-            AppChoiceChips<String>(
-              items: _activityFilters,
-              labelOf: (f) => f,
-              selected: _activityFilter,
-              onSelected: (f) => setState(() => _activityFilter = f),
-              activeColor: AppTheme.primaryColor,
-              fontSize: 13,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppChoiceChips<String>(
+                  items: _activityFilters,
+                  labelOf: (f) => f,
+                  selected: _activityFilter,
+                  onSelected: (f) => setState(() => _activityFilter = f),
+                  activeColor: AppTheme.primaryColor,
+                  fontSize: 13,
+                ),
+                const SizedBox(width: 8),
+                _buildDayFilterButton(),
+              ],
             ),
           ],
         ),
@@ -149,6 +177,64 @@ class _DesktopHomeContentState extends State<DesktopHomeContent> {
           negativeColor,
         ),
       ],
+    );
+  }
+
+  Widget _buildDayFilterButton() {
+    final hasDay = _selectedDay != null;
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: _pickDay,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: hasDay
+              ? AppTheme.primaryColor.withValues(alpha: 0.1)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: hasDay
+                ? AppTheme.primaryColor
+                : Colors.black.withValues(alpha: 0.12),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 14,
+              color: hasDay
+                  ? AppTheme.primaryColor
+                  : Colors.black.withValues(alpha: 0.5),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              hasDay
+                  ? '${_selectedDay!.day.toString().padLeft(2, '0')}/'
+                        '${_selectedDay!.month.toString().padLeft(2, '0')}'
+                  : 'Filtrar dia',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: hasDay ? AppTheme.primaryColor : Colors.black87,
+              ),
+            ),
+            if (hasDay) ...[
+              const SizedBox(width: 4),
+              InkWell(
+                onTap: () => setState(() => _selectedDay = null),
+                child: Icon(
+                  Icons.close,
+                  size: 14,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 

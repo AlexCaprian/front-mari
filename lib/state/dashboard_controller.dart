@@ -9,6 +9,7 @@ import '../services/local_cache.dart';
 import '../services/sync_queue.dart';
 import '../services/sync_service.dart';
 import '../utils/dashboard_activity_builder.dart';
+import '../utils/month_utils.dart';
 
 class DashboardController extends ChangeNotifier {
   DashboardData? _data;
@@ -37,11 +38,15 @@ class DashboardController extends ChangeNotifier {
   bool get isOffline => _isOffline;
 
   Future<void> load({String? month}) async {
+    // Sem mês explícito (ex: aba Início), usa o mês atual local em vez de
+    // deixar o backend cair no dele (calculado em UTC — diverge do mês local
+    // nas últimas horas do último dia do mês em fusos atrás de UTC).
+    final effectiveMonth = month ?? currentMonthLocal();
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
     try {
-      _data = await ApiRoutes.getDashboard(month: month);
+      _data = await ApiRoutes.getDashboard(month: effectiveMonth);
       _isOffline = false;
       unawaited(SyncService.instance.trySync());
 
@@ -56,11 +61,11 @@ class DashboardController extends ChangeNotifier {
       } else {
         // Ainda há algo que o servidor não sabe (feito offline) — mostra o
         // recomputo local em vez da resposta, que já está desatualizada.
-        final rebuilt = await _buildFromLocalCache(month);
+        final rebuilt = await _buildFromLocalCache(effectiveMonth);
         if (rebuilt != null) _data = rebuilt;
       }
     } on ApiException catch (e) {
-      final rebuilt = await _buildFromLocalCache(month);
+      final rebuilt = await _buildFromLocalCache(effectiveMonth);
       if (rebuilt != null) {
         _data = rebuilt;
         _isOffline = true;

@@ -20,7 +20,6 @@ const _paymentMethodLabels = {
   PaymentMethod.dinheiro: 'Dinheiro',
   PaymentMethod.pix: 'Pix',
   PaymentMethod.cartao: 'Cartão',
-  PaymentMethod.fiado: 'Fiado',
 };
 
 class NewSaleScreen extends StatefulWidget {

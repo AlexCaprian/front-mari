@@ -25,6 +25,7 @@ class _NewProductScreenState extends State<NewProductScreen> {
   final _priceController = TextEditingController();
   final _costController = TextEditingController();
   int _stock = 0;
+  bool _stockRequired = true;
   bool _isSaving = false;
 
   bool get _isEditing => widget.product != null;
@@ -40,6 +41,7 @@ class _NewProductScreenState extends State<NewProductScreen> {
           ? ''
           : formatCurrencyValue(product.cost!);
       _stock = product.stock;
+      _stockRequired = product.stockRequired;
     }
   }
 
@@ -80,7 +82,8 @@ class _NewProductScreenState extends State<NewProductScreen> {
       'cost': _costController.text.trim().isEmpty
           ? null
           : parseCurrencyValue(_costController.text),
-      'stock': _stock,
+      'stock': _stockRequired ? _stock : 0,
+      'stockRequired': _stockRequired,
     };
     final success = _isEditing
         ? await controller.update(widget.product!.id, body)
@@ -189,16 +192,39 @@ class _NewProductScreenState extends State<NewProductScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // 3. Quantidade em Estoque
-                  QuantityStepper(
-                    label: 'Quantidade em estoque',
-                    tooltip: 'Quantidade disponível deste produto para venda.',
-                    value: _stock,
-                    onIncrement: _incrementStock,
-                    onDecrement: _decrementStock,
-                    onChanged: _setStock,
-                    padding: const EdgeInsets.all(6),
+                  // 3. Quantidade em Estoque (opcional)
+                  CheckboxListTile(
+                    value: _stockRequired,
+                    onChanged: (value) =>
+                        setState(() => _stockRequired = value ?? true),
+                    title: const Text(
+                      'Quantidade obrigatória',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Controla o estoque deste produto e exige a quantidade '
+                      'ao cadastrar e vender.',
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    activeColor: AppTheme.primaryColor,
                   ),
+                  if (_stockRequired) ...[
+                    const SizedBox(height: 8),
+                    QuantityStepper(
+                      label: 'Quantidade em estoque',
+                      tooltip:
+                          'Quantidade disponível deste produto para venda.',
+                      value: _stock,
+                      onIncrement: _incrementStock,
+                      onDecrement: _decrementStock,
+                      onChanged: _setStock,
+                      padding: const EdgeInsets.all(6),
+                    ),
+                  ],
                   const SizedBox(height: 48),
 
                   // 4. Botão de Salvar Produto

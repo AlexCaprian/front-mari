@@ -42,9 +42,10 @@ class AppChoiceChips<T> extends StatelessWidget {
             ),
           ),
           selected: isSelected,
-          onSelected: (value) {
-            if (value) onSelected(item);
-          },
+          // Comportamento de seleção única (tipo radio): tocar no chip já
+          // selecionado não pode desmarcá-lo, então ignoramos o valor de
+          // toggle que o ChoiceChip envia e sempre reafirmamos o item.
+          onSelected: (_) => onSelected(item),
           selectedColor: activeColor,
           backgroundColor: Colors.white,
           side: BorderSide(

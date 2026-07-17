@@ -66,7 +66,7 @@ class _TransactionImportButtonState extends State<TransactionImportButton> {
         'type': row.type.apiValue,
         'amount': row.amount,
         'category': row.category,
-        'occurredAt': row.occurredAt.toIso8601String(),
+        'occurredAt': row.occurredAt.toUtc().toIso8601String(),
       });
 
       if (!success) {

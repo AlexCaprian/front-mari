@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
+import '../../state/dashboard_controller.dart';
+import '../../state/reports_controller.dart';
 import '../../state/transactions_controller.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/month_utils.dart';
 import '../../widgets/app_button.dart';
 import '../../widgets/app_choice_chips.dart';
 import '../../widgets/app_text_field.dart';
@@ -63,7 +66,7 @@ class DesktopTransactionContent extends StatefulWidget {
 }
 
 class _DesktopTransactionContentState extends State<DesktopTransactionContent> {
-  bool _isExpense = true;
+  bool _isExpense = false;
   final TextEditingController _valueController = TextEditingController();
   String _selectedCategory = 'Luz';
   DateTime _selectedDate = DateTime.now();
@@ -79,6 +82,7 @@ class _DesktopTransactionContentState extends State<DesktopTransactionContent> {
     'Aluguel',
     'Gasolina',
     'Carro',
+    'Almoço',
     'Outro',
   ];
 
@@ -141,7 +145,7 @@ class _DesktopTransactionContentState extends State<DesktopTransactionContent> {
           .apiValue,
       'amount': _amount,
       'category': categoryName,
-      'occurredAt': _selectedDate.toIso8601String(),
+      'occurredAt': _selectedDate.toUtc().toIso8601String(),
     });
 
     if (!mounted) return;
@@ -158,7 +162,15 @@ class _DesktopTransactionContentState extends State<DesktopTransactionContent> {
       return;
     }
 
-    final type = _isExpense ? 'Despesa' : 'Ganho extra';
+    // Recarrega Início e Relatórios em segundo plano, sem bloquear a
+    // confirmação nem a volta pro Início.
+    context.read<DashboardController>().load();
+    context.read<ReportsController>().loadMonthly();
+    context.read<ReportsController>().loadComparison(
+      threeMonthWindows(recentMonths()).last,
+    );
+
+    final type = _isExpense ? 'Despesa' : 'Receita';
     final sign = _isExpense ? '-' : '+';
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -215,18 +227,18 @@ class _DesktopTransactionContentState extends State<DesktopTransactionContent> {
                     children: [
                       Expanded(
                         child: _buildTab(
-                          'Despesa',
-                          _isExpense,
-                          negativeColor,
-                          () => setState(() => _isExpense = true),
+                          'Receita',
+                          !_isExpense,
+                          positiveColor,
+                          () => setState(() => _isExpense = false),
                         ),
                       ),
                       Expanded(
                         child: _buildTab(
-                          'Ganho extra',
-                          !_isExpense,
-                          positiveColor,
-                          () => setState(() => _isExpense = false),
+                          'Despesa',
+                          _isExpense,
+                          negativeColor,
+                          () => setState(() => _isExpense = true),
                         ),
                       ),
                     ],
