@@ -4,7 +4,9 @@ import '../models/models.dart';
 import '../state/reports_controller.dart';
 import '../theme/app_theme.dart';
 import '../utils/month_utils.dart';
+import '../widgets/activity_filter.dart';
 import '../widgets/app_button.dart';
+import '../widgets/app_choice_chips.dart';
 import '../widgets/app_dropdown_field.dart';
 import '../widgets/async_state_view.dart';
 import '../widgets/loading_overlay.dart';
@@ -21,6 +23,9 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
   late final List<String> _months = recentMonths();
   late String _selectedMonth = _months.last;
   bool _isImportingTransactions = false;
+  String _activityFilter = activityTypeFilters.first;
+  Set<String> _selectedDescriptions = {};
+  DateTime? _selectedDay;
 
   @override
   void initState() {
@@ -31,13 +36,35 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
   void _loadMonth(String month) {
     final controller = context.read<ReportsController>();
     controller.loadMonthly(month: month);
-    controller.loadMonthlyExpenses(month);
+    controller.loadMonthlyActivity(month);
   }
 
   void _onMonthChanged(String? month) {
     if (month == null) return;
-    setState(() => _selectedMonth = month);
+    setState(() {
+      _selectedMonth = month;
+      _activityFilter = activityTypeFilters.first;
+      _selectedDescriptions = {};
+      _selectedDay = null;
+    });
     _loadMonth(month);
+  }
+
+  Future<void> _openActivityFilterSheet(List<DashboardActivity> allActivity) async {
+    final options = {for (final a in allActivity) a.description}.toList()
+      ..sort();
+
+    final result = await showActivityFilterSheet(
+      context,
+      options: options,
+      initialSelected: _selectedDescriptions,
+      initialDay: _selectedDay,
+    );
+    if (result == null) return;
+    setState(() {
+      _selectedDescriptions = result.descriptions;
+      _selectedDay = result.day;
+    });
   }
 
   void _exportReport() {
@@ -279,64 +306,72 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
                         ),
                         const SizedBox(height: 36),
 
-                        // 4. Seção "Para onde foi o dinheiro" (Categorias de gastos)
+                        // 4. Seção "Movimentações do mês" (ganhos e despesas
+                        // juntos, no mesmo formato e com os mesmos filtros
+                        // usados em "Últimas movimentações" do Início)
                         Text(
-                          'Para onde foi o dinheiro',
+                          'Movimentações do mês',
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 16),
-
-                        if (report.categories.isEmpty)
-                          Text(
-                            'Nenhuma despesa registrada neste mês.',
-                            style: TextStyle(
-                              color: Colors.black.withValues(alpha: 0.5),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: AppChoiceChips<String>(
+                                items: activityTypeFilters,
+                                labelOf: (f) => f,
+                                selected: _activityFilter,
+                                onSelected: (f) =>
+                                    setState(() => _activityFilter = f),
+                                activeColor: AppTheme.primaryColor,
+                              ),
                             ),
-                          )
-                        else
-                          for (
-                            var i = 0;
-                            i < report.categories.length;
-                            i++
-                          ) ...[
-                            if (i > 0) const SizedBox(height: 12),
-                            _buildCategoryExpenseItem(
-                              context: context,
-                              categoryName: report.categories[i].category,
-                              value:
-                                  '- R\$ ${report.categories[i].value.toStringAsFixed(2)}',
-                              color: negativeColor,
-                              percentage: report.categories[i].percentage / 100,
+                            const SizedBox(width: 8),
+                            ActivityFilterButton(
+                              hasFilter:
+                                  _selectedDescriptions.isNotEmpty ||
+                                  _selectedDay != null,
+                              onPressed: () => _openActivityFilterSheet(
+                                reportsController.monthlyActivity ?? const [],
+                              ),
                             ),
                           ],
-                        const SizedBox(height: 36),
-
-                        // 4b. Seção "Despesas do mês" (lançamentos individuais,
-                        // no mesmo formato de item usado em "Últimas
-                        // movimentações" do Início)
-                        Text(
-                          'Despesas do mês',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 16),
                         AsyncStateView(
-                          isLoading: reportsController.isLoadingMonthlyExpenses,
-                          errorMessage: reportsController.monthlyExpensesError,
+                          isLoading: reportsController.isLoadingMonthlyActivity,
+                          errorMessage: reportsController.monthlyActivityError,
                           isEmpty:
-                              (reportsController.monthlyExpenses ?? []).isEmpty,
-                          emptyMessage: 'Nenhuma despesa registrada neste mês.',
+                              (reportsController.monthlyActivity ?? [])
+                                  .isEmpty,
+                          emptyMessage:
+                              'Nenhuma movimentação registrada neste mês.',
                           builder: (context) {
-                            final expenses = reportsController.monthlyExpenses!;
+                            final activity = filterActivityList(
+                              reportsController.monthlyActivity!,
+                              typeFilter: _activityFilter,
+                              descriptions: _selectedDescriptions,
+                              day: _selectedDay,
+                            );
+                            if (activity.isEmpty) {
+                              return Text(
+                                'Nenhuma movimentação encontrada para este filtro.',
+                                style: TextStyle(
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                ),
+                              );
+                            }
                             return Column(
                               children: [
-                                for (var i = 0; i < expenses.length; i++) ...[
+                                for (var i = 0; i < activity.length; i++) ...[
                                   if (i > 0) const SizedBox(height: 12),
-                                  _buildExpenseItem(
+                                  _buildActivityItem(
                                     context: context,
-                                    transaction: expenses[i],
-                                    color: negativeColor,
+                                    activity: activity[i],
+                                    positiveColor: positiveColor,
+                                    negativeColor: negativeColor,
                                   ),
                                 ],
                               ],
@@ -379,11 +414,14 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
     );
   }
 
-  Widget _buildExpenseItem({
+  Widget _buildActivityItem({
     required BuildContext context,
-    required Transaction transaction,
-    required Color color,
+    required DashboardActivity activity,
+    required Color positiveColor,
+    required Color negativeColor,
   }) {
+    final isPositive = activity.amount >= 0;
+    final color = isPositive ? positiveColor : negativeColor;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -403,7 +441,13 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
               color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.arrow_downward_rounded, color: color, size: 20),
+            child: Icon(
+              isPositive
+                  ? Icons.arrow_upward_rounded
+                  : Icons.arrow_downward_rounded,
+              color: color,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -411,7 +455,7 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  transaction.category,
+                  activity.description,
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 15,
@@ -420,7 +464,7 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  _formatExpenseDate(transaction.occurredAt),
+                  _formatExpenseDate(activity.date),
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -431,7 +475,7 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
             ),
           ),
           Text(
-            '- R\$ ${transaction.amount.toStringAsFixed(2)}',
+            '${isPositive ? '+' : '-'} R\$ ${activity.amount.abs().toStringAsFixed(2)}',
             style: TextStyle(
               color: color,
               fontWeight: FontWeight.w900,
@@ -445,72 +489,4 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
 
   String _formatExpenseDate(DateTime date) =>
       '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
-
-  Widget _buildCategoryExpenseItem({
-    required BuildContext context,
-    required String categoryName,
-    required String value,
-    required Color color,
-    required double percentage,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.black.withValues(alpha: 0.05),
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                categoryName,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.black87,
-                ),
-              ),
-              Text(
-                value,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: percentage.clamp(0.0, 1.0),
-              minHeight: 8,
-              backgroundColor: Colors.black.withValues(alpha: 0.05),
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.bottomRight,
-            child: Text(
-              '${(percentage * 100).toStringAsFixed(0)}%',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.black.withValues(alpha: 0.4),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

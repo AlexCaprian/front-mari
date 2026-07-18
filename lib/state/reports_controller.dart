@@ -4,18 +4,48 @@ import '../models/models.dart';
 import '../services/api_routes.dart';
 import '../services/dio_client.dart';
 import '../services/local_cache.dart';
+import '../services/session_events.dart';
+import '../utils/dashboard_activity_builder.dart';
 import '../utils/month_utils.dart';
 
 class ReportsController extends ChangeNotifier {
+  ReportsController() {
+    SessionEvents.instance.addListener(_onSessionEnded);
+  }
+
+  @override
+  void dispose() {
+    SessionEvents.instance.removeListener(_onSessionEnded);
+    super.dispose();
+  }
+
+  // Sessão encerrada (logout ou token expirado): limpa o estado em memória
+  // pra não continuar mostrando relatórios da conta anterior.
+  void _onSessionEnded() {
+    _monthlyReport = null;
+    _isLoadingMonthly = false;
+    _monthlyError = null;
+    _isMonthlyOffline = false;
+    _monthlyActivity = null;
+    _isLoadingMonthlyActivity = false;
+    _monthlyActivityError = null;
+    _isMonthlyActivityOffline = false;
+    _comparison = null;
+    _isLoadingComparison = false;
+    _comparisonError = null;
+    _isComparisonOffline = false;
+    notifyListeners();
+  }
+
   MonthlyReport? _monthlyReport;
   bool _isLoadingMonthly = false;
   String? _monthlyError;
   bool _isMonthlyOffline = false;
 
-  List<Transaction>? _monthlyExpenses;
-  bool _isLoadingMonthlyExpenses = false;
-  String? _monthlyExpensesError;
-  bool _isMonthlyExpensesOffline = false;
+  List<DashboardActivity>? _monthlyActivity;
+  bool _isLoadingMonthlyActivity = false;
+  String? _monthlyActivityError;
+  bool _isMonthlyActivityOffline = false;
 
   List<MonthComparison>? _comparison;
   bool _isLoadingComparison = false;
@@ -27,10 +57,10 @@ class ReportsController extends ChangeNotifier {
   String? get monthlyError => _monthlyError;
   bool get isMonthlyOffline => _isMonthlyOffline;
 
-  List<Transaction>? get monthlyExpenses => _monthlyExpenses;
-  bool get isLoadingMonthlyExpenses => _isLoadingMonthlyExpenses;
-  String? get monthlyExpensesError => _monthlyExpensesError;
-  bool get isMonthlyExpensesOffline => _isMonthlyExpensesOffline;
+  List<DashboardActivity>? get monthlyActivity => _monthlyActivity;
+  bool get isLoadingMonthlyActivity => _isLoadingMonthlyActivity;
+  String? get monthlyActivityError => _monthlyActivityError;
+  bool get isMonthlyActivityOffline => _isMonthlyActivityOffline;
 
   List<MonthComparison>? get comparison => _comparison;
   bool get isLoadingComparison => _isLoadingComparison;
@@ -64,48 +94,62 @@ class ReportsController extends ChangeNotifier {
     }
   }
 
-  /// Lista de despesas (transações do tipo `expense`) do mês selecionado,
-  /// pra exibir no Relatório Mensal no mesmo formato de item usado em
-  /// "Últimas movimentações" — complementa o resumo por categoria já
-  /// mostrado ali com o detalhe de cada lançamento individual.
-  Future<void> loadMonthlyExpenses(String month) async {
-    _isLoadingMonthlyExpenses = true;
-    _monthlyExpensesError = null;
+  /// Lista de movimentações (vendas + transações, ganhos e despesas) do mês
+  /// selecionado, pra exibir no Relatório Mensal no mesmo formato e com os
+  /// mesmos filtros usados em "Últimas movimentações" do Início.
+  Future<void> loadMonthlyActivity(String month) async {
+    _isLoadingMonthlyActivity = true;
+    _monthlyActivityError = null;
     notifyListeners();
     final range = monthDateRangeUtc(month);
+    final endDateInclusive = range.end.subtract(
+      const Duration(milliseconds: 1),
+    );
     try {
-      _monthlyExpenses = await ApiRoutes.getTransactions(
+      final sales = await ApiRoutes.getSales(
         startDate: range.start.toIso8601String(),
-        endDate: range.end.toIso8601String(),
-        type: TransactionType.expense.apiValue,
+        endDate: endDateInclusive.toIso8601String(),
       );
-      _monthlyExpenses!.sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
-      _isMonthlyExpensesOffline = false;
+      final transactions = await ApiRoutes.getTransactions(
+        startDate: range.start.toIso8601String(),
+        endDate: endDateInclusive.toIso8601String(),
+      );
+      _monthlyActivity = buildActivityList(
+        sales: sales,
+        transactions: transactions,
+      );
+      _isMonthlyActivityOffline = false;
     } on ApiException catch (e) {
-      // Sem conexão: filtra o mês pedido a partir do cache de transações já
-      // mantido pelo TransactionsController (que já reflete mutações feitas
-      // offline), em vez de simplesmente mostrar erro.
-      final cached = await LocalCache.instance.readList(
+      // Sem conexão: filtra o mês pedido a partir do cache de vendas e
+      // transações já mantido pelos respectivos controllers (que já reflete
+      // mutações feitas offline), em vez de simplesmente mostrar erro.
+      final cachedSales = await LocalCache.instance.readList(
+        CacheKeys.sales,
+      );
+      final cachedTransactions = await LocalCache.instance.readList(
         CacheKeys.transactions,
       );
-      if (cached != null) {
-        _monthlyExpenses =
-            cached
-                .map(Transaction.fromJson)
-                .where(
-                  (t) =>
-                      t.type == TransactionType.expense &&
-                      !t.occurredAt.isBefore(range.start) &&
-                      t.occurredAt.isBefore(range.end),
-                )
-                .toList()
-              ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
-        _isMonthlyExpensesOffline = true;
+      if (cachedSales != null || cachedTransactions != null) {
+        bool inMonth(DateTime date) =>
+            !date.isBefore(range.start) && date.isBefore(range.end);
+        final sales = (cachedSales ?? [])
+            .map(Sale.fromJson)
+            .where((s) => inMonth(s.createdAt))
+            .toList();
+        final transactions = (cachedTransactions ?? [])
+            .map(Transaction.fromJson)
+            .where((t) => inMonth(t.occurredAt))
+            .toList();
+        _monthlyActivity = buildActivityList(
+          sales: sales,
+          transactions: transactions,
+        );
+        _isMonthlyActivityOffline = true;
       } else {
-        _monthlyExpensesError = e.message;
+        _monthlyActivityError = e.message;
       }
     } finally {
-      _isLoadingMonthlyExpenses = false;
+      _isLoadingMonthlyActivity = false;
       notifyListeners();
     }
   }

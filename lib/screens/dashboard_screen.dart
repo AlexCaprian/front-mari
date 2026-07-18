@@ -8,10 +8,10 @@ import '../state/products_controller.dart';
 import '../state/sales_controller.dart';
 import '../state/transactions_controller.dart';
 import '../theme/app_theme.dart';
+import '../widgets/activity_filter.dart';
 import '../widgets/app_choice_chips.dart';
 import '../widgets/async_state_view.dart';
 import '../widgets/currency_format.dart';
-import '../widgets/field_label.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/product_export_button.dart';
 import '../widgets/product_import_button.dart';
@@ -32,48 +32,25 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-const _activityFilters = ['Todos', 'Ganhos', 'Despesas'];
-
-/// Resultado do bottom sheet de filtro de "Últimas movimentações": descrições
-/// selecionadas e/ou um dia específico.
-class ActivityFilterResult {
-  const ActivityFilterResult({required this.descriptions, required this.day});
-
-  final Set<String> descriptions;
-  final DateTime? day;
-}
+const _activityPageSize = 25;
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
-  String _activityFilter = _activityFilters.first;
+  String _activityFilter = activityTypeFilters.first;
   Set<String> _selectedDescriptions = {};
   DateTime? _selectedDay;
   bool _isDeletingProduct = false;
   bool _isProcessingActivity = false;
-
-  bool _isSameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
+  int _visibleActivityCount = _activityPageSize;
+  final ScrollController _inicioScrollController = ScrollController();
 
   List<DashboardActivity> _filterActivities(List<DashboardActivity> activity) {
-    Iterable<DashboardActivity> filtered = activity;
-    switch (_activityFilter) {
-      case 'Ganhos':
-        filtered = filtered.where((a) => a.amount >= 0);
-        break;
-      case 'Despesas':
-        filtered = filtered.where((a) => a.amount < 0);
-        break;
-    }
-    if (_selectedDescriptions.isNotEmpty) {
-      filtered = filtered.where(
-        (a) => _selectedDescriptions.contains(a.description),
-      );
-    }
-    final day = _selectedDay;
-    if (day != null) {
-      filtered = filtered.where((a) => _isSameDay(a.date, day));
-    }
-    return filtered.toList();
+    return filterActivityList(
+      activity,
+      typeFilter: _activityFilter,
+      descriptions: _selectedDescriptions,
+      day: _selectedDay,
+    );
   }
 
   Future<void> _openActivityFilterSheet() async {
@@ -83,22 +60,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final options = {for (final a in allActivity) a.description}.toList()
       ..sort();
 
-    final result = await showModalBottomSheet<ActivityFilterResult>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => _ActivityFilterSheet(
-        options: options,
-        initialSelected: _selectedDescriptions,
-        initialDay: _selectedDay,
-      ),
+    final result = await showActivityFilterSheet(
+      context,
+      options: options,
+      initialSelected: _selectedDescriptions,
+      initialDay: _selectedDay,
     );
     if (result == null) return;
     setState(() {
       _selectedDescriptions = result.descriptions;
       _selectedDay = result.day;
+      _visibleActivityCount = _activityPageSize;
+    });
+  }
+
+  /// Carrega mais 25 itens da lista já filtrada quando o usuário rola perto
+  /// do fim da página — evita montar de uma vez os widgets do mês inteiro.
+  void _onInicioScroll() {
+    if (!_inicioScrollController.hasClients) return;
+    final position = _inicioScrollController.position;
+    if (position.pixels < position.maxScrollExtent - 200) return;
+
+    final allActivity =
+        context.read<DashboardController>().data?.activity ??
+        const <DashboardActivity>[];
+    final total = _filterActivities(allActivity).length;
+    if (_visibleActivityCount >= total) return;
+
+    setState(() {
+      _visibleActivityCount = (_visibleActivityCount + _activityPageSize)
+          .clamp(0, total);
     });
   }
 
@@ -107,6 +98,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     context.read<ProductsController>().load();
     context.read<DashboardController>().load();
+    _inicioScrollController.addListener(_onInicioScroll);
+  }
+
+  @override
+  void dispose() {
+    _inicioScrollController.dispose();
+    super.dispose();
   }
 
   String _formatCurrency(double value) => 'R\$ ${value.toStringAsFixed(2)}';
@@ -465,6 +463,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: RefreshIndicator(
         onRefresh: () => context.read<DashboardController>().load(),
         child: SingleChildScrollView(
+          controller: _inicioScrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 20.0),
           child: Column(
@@ -730,15 +729,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Expanded(
                     child: AppChoiceChips<String>(
-                      items: _activityFilters,
+                      items: activityTypeFilters,
                       labelOf: (f) => f,
                       selected: _activityFilter,
-                      onSelected: (f) => setState(() => _activityFilter = f),
+                      onSelected: (f) => setState(() {
+                        _activityFilter = f;
+                        _visibleActivityCount = _activityPageSize;
+                      }),
                       activeColor: AppTheme.primaryColor,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _buildActivityFilterButton(),
+                  ActivityFilterButton(
+                    hasFilter:
+                        _selectedDescriptions.isNotEmpty ||
+                        _selectedDay != null,
+                    onPressed: _openActivityFilterSheet,
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -748,6 +755,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   final activity = data == null
                       ? const <DashboardActivity>[]
                       : _filterActivities(data.activity);
+                  final visibleCount = _visibleActivityCount.clamp(
+                    0,
+                    activity.length,
+                  );
+                  final visibleActivity = activity.take(visibleCount).toList();
                   return AsyncStateView(
                     isLoading: dashboardController.isLoading,
                     errorMessage: dashboardController.errorMessage,
@@ -757,27 +769,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         : 'Nenhuma movimentação encontrada para este filtro.',
                     builder: (context) => Column(
                       children: [
-                        for (var i = 0; i < activity.length; i++) ...[
+                        for (
+                          var i = 0;
+                          i < visibleActivity.length;
+                          i++
+                        ) ...[
                           if (i > 0) const SizedBox(height: 12),
                           Builder(
                             builder: (context) {
-                              final isPositive = activity[i].amount >= 0;
+                              final isPositive = visibleActivity[i].amount >= 0;
                               final color = isPositive
                                   ? positiveColor
                                   : negativeColor;
                               return _buildTodayTransactionItem(
-                                activity: activity[i],
+                                activity: visibleActivity[i],
                                 icon: isPositive
                                     ? Icons.arrow_upward_rounded
                                     : Icons.arrow_downward_rounded,
                                 iconColor: color,
-                                title: activity[i].description,
-                                subtitle: _formatActivityDate(activity[i].date),
+                                title: visibleActivity[i].description,
+                                subtitle: _formatActivityDate(
+                                  visibleActivity[i].date,
+                                ),
                                 value:
-                                    '${isPositive ? '+' : '-'} ${_formatCurrency(activity[i].amount.abs())}',
+                                    '${isPositive ? '+' : '-'} ${_formatCurrency(visibleActivity[i].amount.abs())}',
                                 valueColor: color,
                               );
                             },
+                          ),
+                        ],
+                        if (visibleActivity.length < activity.length) ...[
+                          const SizedBox(height: 16),
+                          Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
                           ),
                         ],
                       ],
@@ -1286,52 +1317,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildActivityFilterButton() {
-    final hasFilter =
-        _selectedDescriptions.isNotEmpty || _selectedDay != null;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Material(
-          color: hasFilter
-              ? AppTheme.primaryColor.withValues(alpha: 0.1)
-              : Colors.white,
-          shape: CircleBorder(
-            side: BorderSide(
-              color: hasFilter
-                  ? AppTheme.primaryColor
-                  : Colors.black.withValues(alpha: 0.12),
-              width: 1.5,
-            ),
-          ),
-          child: IconButton(
-            onPressed: _openActivityFilterSheet,
-            tooltip: 'Filtrar movimentações',
-            icon: Icon(
-              Icons.filter_alt_outlined,
-              color: hasFilter
-                  ? AppTheme.primaryColor
-                  : Colors.black.withValues(alpha: 0.5),
-            ),
-          ),
-        ),
-        if (hasFilter)
-          Positioned(
-            right: 6,
-            top: 6,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                color: AppTheme.primaryColor,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
   Widget _buildQuickActionButton({
     required IconData icon,
     required String label,
@@ -1522,211 +1507,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         );
       },
-    );
-  }
-}
-
-class _ActivityFilterSheet extends StatefulWidget {
-  const _ActivityFilterSheet({
-    required this.options,
-    required this.initialSelected,
-    required this.initialDay,
-  });
-
-  final List<String> options;
-  final Set<String> initialSelected;
-  final DateTime? initialDay;
-
-  @override
-  State<_ActivityFilterSheet> createState() => _ActivityFilterSheetState();
-}
-
-class _ActivityFilterSheetState extends State<_ActivityFilterSheet> {
-  late final Set<String> _selected = Set.of(widget.initialSelected);
-  late DateTime? _day = widget.initialDay;
-  final _searchController = TextEditingController();
-  String _query = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final filteredOptions = _query.isEmpty
-        ? widget.options
-        : widget.options
-              .where((o) => o.toLowerCase().contains(_query.toLowerCase()))
-              .toList();
-
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 20,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Filtrar movimentações',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                if (_selected.isNotEmpty || _day != null)
-                  TextButton(
-                    onPressed: () => setState(() {
-                      _selected.clear();
-                      _day = null;
-                    }),
-                    child: const Text('Limpar'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const FieldLabel(text: 'Dia'),
-            const SizedBox(height: 8),
-            InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: _day ?? DateTime.now(),
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime.now(),
-                  locale: const Locale('pt', 'BR'),
-                );
-                if (picked != null) setState(() => _day = picked);
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: _day != null
-                        ? AppTheme.primaryColor
-                        : Colors.black.withValues(alpha: 0.12),
-                    width: 1.5,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today_outlined,
-                      size: 18,
-                      color: _day != null
-                          ? AppTheme.primaryColor
-                          : Colors.black.withValues(alpha: 0.5),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _day == null
-                            ? 'Qualquer dia'
-                            : '${_day!.day.toString().padLeft(2, '0')}/'
-                                  '${_day!.month.toString().padLeft(2, '0')}/'
-                                  '${_day!.year}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: _day != null
-                              ? AppTheme.primaryColor
-                              : Colors.black87,
-                        ),
-                      ),
-                    ),
-                    if (_day != null)
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () => setState(() => _day = null),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        color: Colors.black.withValues(alpha: 0.5),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _searchController,
-              onChanged: (value) => setState(() => _query = value),
-              decoration: InputDecoration(
-                hintText: 'Pesquisar...',
-                prefixIcon: const Icon(Icons.search),
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.45,
-              ),
-              child: widget.options.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Text('Nenhuma movimentação registrada ainda.'),
-                    )
-                  : filteredOptions.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Text('Nenhum item encontrado.'),
-                    )
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: filteredOptions.length,
-                      itemBuilder: (context, index) {
-                        final option = filteredOptions[index];
-                        return CheckboxListTile(
-                          value: _selected.contains(option),
-                          title: Text(option),
-                          contentPadding: EdgeInsets.zero,
-                          controlAffinity: ListTileControlAffinity.leading,
-                          activeColor: AppTheme.primaryColor,
-                          onChanged: (checked) {
-                            setState(() {
-                              if (checked == true) {
-                                _selected.add(option);
-                              } else {
-                                _selected.remove(option);
-                              }
-                            });
-                          },
-                        );
-                      },
-                    ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(
-                  ActivityFilterResult(descriptions: _selected, day: _day),
-                ),
-                child: Text(
-                  _selected.isEmpty && _day == null
-                      ? 'Mostrar tudo'
-                      : 'Aplicar',
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

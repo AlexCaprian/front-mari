@@ -6,6 +6,7 @@ import '../models/models.dart';
 import '../services/api_routes.dart';
 import '../services/dio_client.dart';
 import '../services/local_cache.dart';
+import '../services/session_events.dart';
 import '../services/sync_queue.dart';
 import '../services/sync_service.dart';
 import '../utils/dashboard_activity_builder.dart';
@@ -20,16 +21,28 @@ class DashboardController extends ChangeNotifier {
 
   DashboardController() {
     SyncService.instance.addListener(_onSynced);
+    SessionEvents.instance.addListener(_onSessionEnded);
   }
 
   @override
   void dispose() {
     SyncService.instance.removeListener(_onSynced);
+    SessionEvents.instance.removeListener(_onSessionEnded);
     super.dispose();
   }
 
   void _onSynced() {
     if (!_isLoading) load();
+  }
+
+  // Sessão encerrada (logout ou token expirado): limpa o estado em memória
+  // pra não continuar mostrando o dashboard da conta anterior.
+  void _onSessionEnded() {
+    _data = null;
+    _isLoading = false;
+    _errorMessage = null;
+    _isOffline = false;
+    notifyListeners();
   }
 
   DashboardData? get data => _data;
@@ -46,7 +59,35 @@ class DashboardController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      _data = await ApiRoutes.getDashboard(month: effectiveMonth);
+      // O `activity` de GET /dashboard vem limitado a 10 itens pelo backend
+      // (back_mari/src/routes/dashboard.routes.ts). Pra mostrar o mês
+      // inteiro em "Últimas movimentações", buscamos vendas/transações do
+      // mês à parte (essas rotas não têm esse limite) e montamos a lista
+      // completa, aproveitando só os totais (já corretos) do /dashboard.
+      final bounds = monthDateRangeUtc(effectiveMonth);
+      final endDateInclusive = bounds.end.subtract(
+        const Duration(milliseconds: 1),
+      );
+      final dashboardFuture = ApiRoutes.getDashboard(month: effectiveMonth);
+      final salesFuture = ApiRoutes.getSales(
+        startDate: bounds.start.toIso8601String(),
+        endDate: endDateInclusive.toIso8601String(),
+      );
+      final transactionsFuture = ApiRoutes.getTransactions(
+        startDate: bounds.start.toIso8601String(),
+        endDate: endDateInclusive.toIso8601String(),
+      );
+      final dashboard = await dashboardFuture;
+      final sales = await salesFuture;
+      final transactions = await transactionsFuture;
+
+      _data = DashboardData(
+        month: dashboard.month,
+        saldoDoMes: dashboard.saldoDoMes,
+        ganhos: dashboard.ganhos,
+        despesas: dashboard.despesas,
+        activity: buildActivityList(sales: sales, transactions: transactions),
+      );
       _isOffline = false;
       unawaited(SyncService.instance.trySync());
 
