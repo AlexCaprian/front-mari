@@ -6,10 +6,11 @@ import '../state/products_controller.dart';
 import '../state/transactions_controller.dart';
 import '../utils/transaction_import.dart';
 
-/// Botão "Importar dados" usado na tela de Relatório Mensal: abre o seletor
-/// de arquivo, lê uma planilha CSV/Excel com colunas de nome, valor,
-/// quantidade (opcional), tipo (ganho/despesa) e data, e cadastra uma
-/// transação pra cada linha. Linhas de ganho cujo nome bate (case-insensitive)
+/// Botão "Importar dados" usado na tela de Relatório Mensal (mobile e
+/// desktop): abre o seletor de arquivo, lê uma planilha CSV/Excel com
+/// colunas de nome, valor, quantidade (opcional), tipo (ganho/despesa) e
+/// data, e cadastra uma transação pra cada linha. Linhas de ganho cujo nome
+/// bate (case-insensitive)
 /// com um produto já cadastrado também descontam a quantidade vendida do
 /// estoque desse produto, mesmo que fique negativo — nunca perde a venda já
 /// identificada por falta de estoque cadastrado. Avisa [onImportingChanged]

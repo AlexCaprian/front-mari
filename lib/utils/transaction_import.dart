@@ -98,11 +98,32 @@ List<List<String>> _readXlsxTable(Uint8List bytes) {
   if (excel.tables.isEmpty) return [];
   final sheet = excel.tables.values.first;
   return sheet.rows
-      .map(
-        (row) =>
-            row.map((cell) => cell?.value?.toString().trim() ?? '').toList(),
-      )
+      .map((row) => row.map(_xlsxCellText).toList())
       .toList();
+}
+
+/// Converte o valor de uma célula do xlsx pro texto usado pelo parser.
+///
+/// Células de data (coluna "data" preenchida como data real, não texto)
+/// chegam como [DateCellValue]/[DateTimeCellValue], cujo `toString()` é um
+/// ISO 8601 com hora e "Z" (ex.: `2026-07-01T00:00:00.000Z`) — não bate com
+/// o formato `aaaa-mm-dd` que [_parseDate] reconhece. Por isso formatamos a
+/// data aqui em vez de usar o `toString()` genérico.
+String _xlsxCellText(Data? cell) {
+  final value = cell?.value;
+  if (value == null) return '';
+  if (value is DateCellValue) {
+    return '${value.year.toString().padLeft(4, '0')}-'
+        '${value.month.toString().padLeft(2, '0')}-'
+        '${value.day.toString().padLeft(2, '0')}';
+  }
+  if (value is DateTimeCellValue) {
+    final dt = value.asDateTimeUtc();
+    return '${dt.year.toString().padLeft(4, '0')}-'
+        '${dt.month.toString().padLeft(2, '0')}-'
+        '${dt.day.toString().padLeft(2, '0')}';
+  }
+  return value.toString().trim();
 }
 
 List<List<String>> _readCsvTable(Uint8List bytes) {
