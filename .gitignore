@@ -50,3 +50,6 @@ app.*.map.json
 # Environment variables (dados sensíveis, ex: URL da API) — use .env.example
 # como referência para criar o seu.
 .env
+
+# Configuração local do Claude Code
+.claude/
