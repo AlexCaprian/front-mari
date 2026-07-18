@@ -8,6 +8,7 @@ import '../services/dio_client.dart';
 import '../services/local_cache.dart';
 import '../services/local_ids.dart';
 import '../services/pending_operation.dart';
+import '../services/session_events.dart';
 import '../services/sync_queue.dart';
 import '../services/sync_service.dart';
 import '../utils/product_import.dart';
@@ -27,11 +28,13 @@ class ProductsController extends ChangeNotifier {
 
   ProductsController() {
     SyncService.instance.addListener(_onSynced);
+    SessionEvents.instance.addListener(_onSessionEnded);
   }
 
   @override
   void dispose() {
     SyncService.instance.removeListener(_onSynced);
+    SessionEvents.instance.removeListener(_onSessionEnded);
     super.dispose();
   }
 
@@ -40,6 +43,19 @@ class ProductsController extends ChangeNotifier {
   // substituir os ids locais pelos reais na tela.
   void _onSynced() {
     if (!_isLoading) load();
+  }
+
+  // Sessão encerrada (logout ou token expirado): esse controller é único
+  // durante a vida do app, então sem isso continuaria mostrando os produtos
+  // da conta anterior até a próxima tela chamar `load()`.
+  void _onSessionEnded() {
+    _products = [];
+    _isLoading = false;
+    _errorMessage = null;
+    _isOffline = false;
+    _actionError = null;
+    _actionErrorStatusCode = null;
+    notifyListeners();
   }
 
   List<Product> get products => List.unmodifiable(_products);

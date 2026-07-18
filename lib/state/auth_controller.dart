@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import '../services/api_routes.dart';
 import '../services/dio_client.dart';
+import '../services/session_events.dart';
 import '../services/sync_queue.dart';
 
 class AuthController extends ChangeNotifier {
@@ -125,6 +126,11 @@ class AuthController extends ChangeNotifier {
     // sincronizar contra a sessão de outra conta depois de um logout/login
     // no mesmo aparelho.
     unawaited(SyncQueue.instance.clear());
+    // Limpa o estado em memória dos outros controllers (produtos, vendas,
+    // transações, dashboard, relatórios) — eles são únicos durante a vida do
+    // app, então sem isso continuariam mostrando os dados da conta anterior
+    // até a próxima tela chamar `load()`.
+    SessionEvents.instance.notifySessionEnded();
     notifyListeners();
   }
 }

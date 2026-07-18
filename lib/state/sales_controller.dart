@@ -8,6 +8,7 @@ import '../services/dio_client.dart';
 import '../services/local_cache.dart';
 import '../services/local_ids.dart';
 import '../services/pending_operation.dart';
+import '../services/session_events.dart';
 import '../services/sync_queue.dart';
 import '../services/sync_service.dart';
 
@@ -26,16 +27,30 @@ class SalesController extends ChangeNotifier {
 
   SalesController() {
     SyncService.instance.addListener(_onSynced);
+    SessionEvents.instance.addListener(_onSessionEnded);
   }
 
   @override
   void dispose() {
     SyncService.instance.removeListener(_onSynced);
+    SessionEvents.instance.removeListener(_onSessionEnded);
     super.dispose();
   }
 
   void _onSynced() {
     if (!_isLoading) load();
+  }
+
+  // Sessão encerrada (logout ou token expirado): limpa o estado em memória
+  // pra não continuar mostrando as vendas da conta anterior.
+  void _onSessionEnded() {
+    _sales = [];
+    _isLoading = false;
+    _errorMessage = null;
+    _isOffline = false;
+    _actionError = null;
+    _actionErrorStatusCode = null;
+    notifyListeners();
   }
 
   List<Sale> get sales => List.unmodifiable(_sales);

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 import 'api_routes.dart';
@@ -71,6 +73,26 @@ class DioClient {
   static void Function()? onSessionExpired;
 
   static bool get isAuthenticated => _token != null;
+
+  /// Id da conta dona da sessão atual (claim `sub` do token JWT). Usado pelo
+  /// [LocalCache] pra isolar o cache local por conta, sem depender de rede
+  /// (o token já foi validado no login/registro, então decodificar seu
+  /// payload aqui é só leitura — não precisa checar assinatura de novo).
+  static String? get currentAccountId => _accountIdFromToken(_token);
+
+  static String? _accountIdFromToken(String? token) {
+    if (token == null) return null;
+    final parts = token.split('.');
+    if (parts.length != 3) return null;
+    try {
+      final payload =
+          jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))))
+              as Map<String, dynamic>;
+      return payload['sub']?.toString();
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Chamado uma vez na inicialização do app, antes da primeira tela, pra
   /// recarregar a sessão salva no keystore/keychain/DPAPI. Se o token salvo

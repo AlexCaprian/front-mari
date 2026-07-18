@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'dio_client.dart';
+
 /// Chaves usadas pelo [LocalCache] — uma por tipo de dado guardado.
 class CacheKeys {
   static const products = 'cache_products';
@@ -39,17 +41,25 @@ class LocalCache {
   Future<SharedPreferences> get _prefsInstance async =>
       _prefs ??= await SharedPreferences.getInstance();
 
+  /// Prefixa a chave com a conta dona da sessão atual (via
+  /// [DioClient.currentAccountId]), pra um dispositivo que já teve outra
+  /// conta logada nunca ler/escrever o cache dela por engano.
+  String _scopedKey(String key) {
+    final accountId = DioClient.currentAccountId;
+    return accountId == null ? key : '${key}__acct_$accountId';
+  }
+
   /// Guarda uma lista de registros substituindo inteiramente o que estava
   /// salvo antes — usado depois de um `load()` bem-sucedido, já que a
   /// resposta da API é sempre a verdade mais recente.
   Future<void> saveList(String key, List<Map<String, dynamic>> items) async {
     final prefs = await _prefsInstance;
-    await prefs.setString(key, jsonEncode(items));
+    await prefs.setString(_scopedKey(key), jsonEncode(items));
   }
 
   Future<List<Map<String, dynamic>>?> readList(String key) async {
     final prefs = await _prefsInstance;
-    final raw = prefs.getString(key);
+    final raw = prefs.getString(_scopedKey(key));
     if (raw == null) return null;
     final decoded = jsonDecode(raw) as List;
     return decoded.cast<Map<String, dynamic>>();
@@ -85,12 +95,12 @@ class LocalCache {
 
   Future<void> saveObject(String key, Map<String, dynamic> data) async {
     final prefs = await _prefsInstance;
-    await prefs.setString(key, jsonEncode(data));
+    await prefs.setString(_scopedKey(key), jsonEncode(data));
   }
 
   Future<Map<String, dynamic>?> readObject(String key) async {
     final prefs = await _prefsInstance;
-    final raw = prefs.getString(key);
+    final raw = prefs.getString(_scopedKey(key));
     if (raw == null) return null;
     return jsonDecode(raw) as Map<String, dynamic>;
   }
