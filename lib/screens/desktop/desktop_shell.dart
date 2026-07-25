@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../state/auth_controller.dart';
-import '../../theme/app_theme.dart';
+import '../../core/state/auth_controller.dart';
+import '../../core/theme/app_theme.dart';
 import '../welcome_screen.dart';
 import 'desktop_home_content.dart';
 import 'desktop_products_content.dart';
 import 'desktop_sale_content.dart';
-import 'desktop_transaction_content.dart';
 import 'desktop_reports_content.dart';
 import 'desktop_data_content.dart';
 
@@ -20,7 +19,8 @@ const List<_NavItemData> _navItems = [
   _NavItemData(icon: Icons.account_balance_wallet_outlined, label: 'Início'),
   _NavItemData(icon: Icons.inventory_2_outlined, label: 'Produtos'),
   _NavItemData(icon: Icons.point_of_sale_outlined, label: 'Vendas'),
-  _NavItemData(icon: Icons.swap_vert_rounded, label: 'Despesas & ganhos'),
+  // "Despesas & ganhos" não é mais um item de navegação: virou o modal de
+  // novo lançamento, aberto por um botão no Início.
   _NavItemData(icon: Icons.bar_chart_outlined, label: 'Relatórios'),
   _NavItemData(icon: Icons.import_export_rounded, label: 'Exportar / Importar'),
 ];
@@ -43,16 +43,22 @@ class _DesktopShellState extends State<DesktopShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F5FA),
+      backgroundColor: const Color.fromARGB(255, 250, 250, 250),
       body: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSidebar(context),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 980),
-                child: _buildContent(),
+              // Align (em vez de só o ConstrainedBox) é o que de fato centraliza
+              // a coluna de 980px na horizontal e a mantém colada no topo.
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 980),
+                  child: _buildContent(),
+                ),
               ),
             ),
           ),
@@ -70,10 +76,8 @@ class _DesktopShellState extends State<DesktopShell> {
       case 2:
         return DesktopSaleContent(onSaved: () => _goTo(0));
       case 3:
-        return DesktopTransactionContent(onSaved: () => _goTo(0));
-      case 4:
         return const DesktopReportsContent();
-      case 5:
+      case 4:
         return const DesktopDataContent();
       default:
         return DesktopHomeContent(onNavigate: _goTo);
@@ -83,62 +87,73 @@ class _DesktopShellState extends State<DesktopShell> {
   Widget _buildSidebar(BuildContext context) {
     return Container(
       width: 260,
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: 0.08,
+            ), // Cor da sombra com transparência
+            blurRadius: 10, // Intensidade do desfoque
+            spreadRadius: 0, // Expansão da sombra
+            offset: Offset(0, 0), // Deslocamento (X, Y)
+          ),
+        ],
+      ),
+
+      padding: const EdgeInsets.symmetric(vertical: 28),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
+
         children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Center(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: Row(
+              children: [
+                Image.asset('assets/image/logo_color_light.png', width: 40),
+                const SizedBox(width: 12),
+                const Expanded(
                   child: Text(
-                    'R\$',
-                    style: TextStyle(
-                      color: AppTheme.primaryColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
+                    'Mari',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Text(
-                  'Mari',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 32),
           ..._navItems.asMap().entries.map(
             (entry) => _buildNavItem(entry.key, entry.value),
           ),
           const Spacer(),
-          const Divider(),
-          const SizedBox(height: 4),
+          Container(
+            decoration: BoxDecoration(color: Color(0xFFE0E0E0)),
+            height: 2,
+            width: 225,
+          ),
+
           InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: _showLogoutDialog,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
                 children: [
-                  Icon(Icons.logout_rounded, size: 20, color: Colors.red),
-                  SizedBox(width: 12),
+                  Icon(
+                    Icons.logout_rounded,
+                    size: 20,
+                    color: Color(0xFFE65A4D),
+                  ),
+                  SizedBox(width: 14),
                   Text(
-                    'Minha conta',
+                    'Sair',
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                      fontSize: 14,
+                      color: Color(0xFFE65A4D),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
@@ -152,48 +167,74 @@ class _DesktopShellState extends State<DesktopShell> {
 
   Widget _buildNavItem(int index, _NavItemData item) {
     final bool selected = index == _selectedIndex;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => _goTo(index),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: selected
-                  ? AppTheme.primaryLightColor.withValues(alpha: 0.5)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              border: selected
-                  ? Border.all(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.35),
-                      width: 1.5,
-                    )
-                  : null,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  item.icon,
-                  size: 20,
-                  color: selected ? AppTheme.primaryColor : Colors.black54,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    item.label,
-                    style: TextStyle(
-                      fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                      color: selected ? AppTheme.primaryColor : Colors.black87,
-                      fontSize: 14,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _goTo(index),
+        child: Stack(
+          children: [
+            // Barra lateral
+            if (selected)
+              Positioned(
+                left: 0,
+                top: 4,
+                bottom: 4,
+                child: Container(
+                  width: 6,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor,
+                    borderRadius: BorderRadius.only(
+                      topRight: Radius.circular(4),
+                      bottomRight: Radius.circular(4),
                     ),
                   ),
                 ),
-              ],
+              ),
+
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              margin: const EdgeInsets.only(left: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppTheme.primaryColor.withValues(alpha: 0.08)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  bottomLeft: Radius.circular(8),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    item.icon,
+                    size: 20,
+                    color: selected
+                        ? AppTheme.primaryColor
+                        : Colors.grey.shade600,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      item.label,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                        color: selected
+                            ? AppTheme.primaryColor
+                            : Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

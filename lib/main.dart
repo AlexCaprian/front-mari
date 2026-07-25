@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
-import 'theme/app_theme.dart';
+import 'core/theme/app_theme.dart';
 import 'screens/welcome_screen.dart';
-import 'screens/dashboard_screen.dart';
-import 'services/dio_client.dart';
-import 'services/sync_service.dart';
-import 'state/state.dart';
+import 'screens/mobile/dashboard_screen.dart';
+import 'core/services/dio_client.dart';
+import 'core/services/sync_service.dart';
+import 'core/state/state.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -53,9 +53,12 @@ Future<void> main() async {
 }
 
 class MyApp extends StatelessWidget {
-  MyApp({super.key, AuthController? authController, FontScaleController? fontScaleController})
-    : authController = authController ?? AuthController(),
-      fontScaleController = fontScaleController ?? FontScaleController();
+  MyApp({
+    super.key,
+    AuthController? authController,
+    FontScaleController? fontScaleController,
+  }) : authController = authController ?? AuthController(),
+       fontScaleController = fontScaleController ?? FontScaleController();
 
   final AuthController authController;
   final FontScaleController fontScaleController;

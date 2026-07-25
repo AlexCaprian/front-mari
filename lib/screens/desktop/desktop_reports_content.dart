@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/models.dart';
-import '../../state/reports_controller.dart';
-import '../../theme/app_theme.dart';
-import '../../utils/month_utils.dart';
-import '../../widgets/activity_filter.dart';
-import '../../widgets/app_button.dart';
-import '../../widgets/app_choice_chips.dart';
-import '../../widgets/app_dropdown_field.dart';
-import '../../widgets/async_state_view.dart';
-import '../../widgets/loading_overlay.dart';
-import '../../widgets/transaction_import_button.dart';
+import '../../core/models/models.dart';
+import '../../core/state/reports_controller.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/month_utils.dart';
+import '../../core/widgets/activity_filter.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_choice_chips.dart';
+import '../../core/widgets/app_dropdown_field.dart';
+import '../../core/widgets/async_state_view.dart';
+import '../../core/widgets/loading_overlay.dart';
+import '../../core/widgets/transaction_import_button.dart';
 
 /// Painel "Relatórios" do modo desktop: alterna entre o relatório mensal
 /// (ganhos/despesas por categoria) e a comparação entre meses (gráfico de
@@ -388,8 +388,9 @@ class _DesktopReportsContentState extends State<DesktopReportsContent> {
                   variant: AppButtonVariant.outlined,
                   label: 'Exportar este mês',
                   icon: Icons.share_outlined,
-                  onPressed: () =>
-                      _exportSnack('Relatório de ${monthLabel(_selectedMonth)}'),
+                  onPressed: () => _exportSnack(
+                    'Relatório de ${monthLabel(_selectedMonth)}',
+                  ),
                 ),
               ),
             ],

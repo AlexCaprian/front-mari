@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../state/auth_controller.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/app_button.dart';
-import '../../widgets/app_text_field.dart';
-import '../../widgets/loading_overlay.dart';
+import '../../core/state/auth_controller.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_text_field.dart';
+import '../../core/widgets/loading_overlay.dart';
 
 /// Painel "Exportar / Importar" do modo desktop: mesma função de backup
 /// dos dados da versão mobile, em um layout mais compacto e alinhado à

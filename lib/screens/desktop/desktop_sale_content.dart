@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/models.dart';
-import '../../state/products_controller.dart';
-import '../../state/sales_controller.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/app_button.dart';
-import '../../widgets/app_choice_chips.dart';
-import '../../widgets/app_dropdown_field.dart';
-import '../../widgets/app_text_field.dart';
-import '../../widgets/async_state_view.dart';
-import '../../widgets/currency_format.dart';
-import '../../widgets/loading_overlay.dart';
-import '../../widgets/quantity_stepper.dart';
+import '../../core/models/models.dart';
+import '../../core/state/products_controller.dart';
+import '../../core/state/sales_controller.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_choice_chips.dart';
+import '../../core/widgets/app_dropdown_field.dart';
+import '../../core/widgets/app_text_field.dart';
+import '../../core/widgets/async_state_view.dart';
+import '../../core/widgets/currency_format.dart';
+import '../../core/widgets/loading_overlay.dart';
+import '../../core/widgets/quantity_stepper.dart';
 
 const _paymentMethodLabels = {
   PaymentMethod.dinheiro: 'Dinheiro',

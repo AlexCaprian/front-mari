@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/models.dart';
-import '../../state/products_controller.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/app_button.dart';
-import '../../widgets/app_text_field.dart';
-import '../../widgets/async_state_view.dart';
-import '../../widgets/currency_format.dart';
-import '../../widgets/loading_overlay.dart';
-import '../../widgets/product_export_button.dart';
-import '../../widgets/product_import_button.dart';
-import '../../widgets/quantity_stepper.dart';
+import '../../core/models/models.dart';
+import '../../core/state/products_controller.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_text_field.dart';
+import '../../core/widgets/async_state_view.dart';
+import '../../core/widgets/currency_format.dart';
+import '../../core/widgets/loading_overlay.dart';
+import '../../core/widgets/product_export_button.dart';
+import '../../core/widgets/product_import_button.dart';
+import '../../core/widgets/quantity_stepper.dart';
 
 /// Painel "Produtos" do modo desktop: formulário de novo produto à esquerda
 /// e um resumo do estoque atual à direita.
@@ -328,8 +328,7 @@ class _DesktopProductsContentState extends State<DesktopProductsContent> {
         const SizedBox(height: 24),
         CheckboxListTile(
           value: _stockRequired,
-          onChanged: (value) =>
-              setState(() => _stockRequired = value ?? true),
+          onChanged: (value) => setState(() => _stockRequired = value ?? true),
           title: const Text(
             'Quantidade obrigatória',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),

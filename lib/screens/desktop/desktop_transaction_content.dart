@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../models/models.dart';
-import '../../state/dashboard_controller.dart';
-import '../../state/reports_controller.dart';
-import '../../state/transactions_controller.dart';
-import '../../theme/app_theme.dart';
-import '../../utils/month_utils.dart';
-import '../../widgets/app_button.dart';
-import '../../widgets/app_choice_chips.dart';
-import '../../widgets/app_text_field.dart';
-import '../../widgets/field_label.dart';
-import '../../widgets/loading_overlay.dart';
+import '../../core/models/models.dart';
+import '../../core/state/reports_controller.dart';
+import '../../core/state/transactions_controller.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/month_utils.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_choice_chips.dart';
+import '../../core/widgets/app_text_field.dart';
+import '../../core/widgets/field_label.dart';
+import '../../core/widgets/loading_overlay.dart';
 
 /// Formata dígitos digitados livremente como moeda em tempo real
 /// (ex.: "21000" -> "210,00"), no mesmo padrão usado no teclado
@@ -53,12 +52,49 @@ class CurrencyInputFormatter extends TextInputFormatter {
   }
 }
 
-/// Painel "Despesas & ganhos" do modo desktop: alternador Despesa/Ganho
-/// extra, valor grande editável via teclado real e categorias.
+/// Abre o formulário de lançamento (despesa / ganho extra) como modal do
+/// modo desktop — no mobile o equivalente é a tela `NewTransactionScreen`.
+/// Resolve `true` quando um lançamento foi salvo, para quem chamou poder
+/// recarregar a tela de fundo.
+Future<bool?> showDesktopTransactionDialog(BuildContext context) {
+  return showDialog<bool>(
+    context: context,
+    // Evita fechar sem querer no meio do preenchimento: só o X ou o
+    // "Cancelar" fecham o modal.
+    barrierDismissible: false,
+    builder: (dialogContext) => Dialog(
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
+          child: DesktopTransactionContent(
+            onSaved: () => Navigator.of(dialogContext).pop(true),
+            onCancel: () => Navigator.of(dialogContext).pop(false),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Formulário "Despesas & ganhos" do modo desktop: alternador Despesa/Ganho
+/// extra, valor grande editável via teclado real e categorias. Usado dentro
+/// do modal aberto por [showDesktopTransactionDialog].
 class DesktopTransactionContent extends StatefulWidget {
   final VoidCallback onSaved;
 
-  const DesktopTransactionContent({super.key, required this.onSaved});
+  /// Quando informado, o formulário se comporta como modal: ganha o botão
+  /// de fechar no cabeçalho e o "Cancelar" ao lado de salvar.
+  final VoidCallback? onCancel;
+
+  const DesktopTransactionContent({
+    super.key,
+    required this.onSaved,
+    this.onCancel,
+  });
 
   @override
   State<DesktopTransactionContent> createState() =>
@@ -85,6 +121,23 @@ class _DesktopTransactionContentState extends State<DesktopTransactionContent> {
     'Almoço',
     'Outro',
   ];
+
+  /// Na receita a categoria é escrita à mão (igual ao mobile); estes dois
+  /// chips são só atalhos que preenchem o campo.
+  static const List<String> _incomeCategories = ['Receita', 'Extra'];
+
+  /// Categoria da receita: sempre o que está escrito no campo livre.
+  String get _incomeCategory => _customCategoryController.text.trim();
+
+  /// Chip de receita clicado: joga o texto no campo, que é quem vale na hora
+  /// de salvar — assim dá pra usar o atalho e ainda editar depois.
+  void _applyIncomeCategory(String category) {
+    _customCategoryController.value = TextEditingValue(
+      text: category,
+      selection: TextSelection.collapsed(offset: category.length),
+    );
+    setState(() {});
+  }
 
   @override
   void dispose() {
@@ -123,8 +176,11 @@ class _DesktopTransactionContentState extends State<DesktopTransactionContent> {
       return;
     }
 
-    if (_selectedCategory == 'Outro' &&
-        _customCategoryController.text.trim().isEmpty) {
+    // Na receita a categoria é sempre o campo livre; na despesa, só quando o
+    // chip "Outro" está selecionado.
+    final bool usesCustomCategory = !_isExpense || _selectedCategory == 'Outro';
+
+    if (usesCustomCategory && _customCategoryController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Por favor, dê um nome para a categoria.'),
@@ -134,7 +190,7 @@ class _DesktopTransactionContentState extends State<DesktopTransactionContent> {
       return;
     }
 
-    final categoryName = _selectedCategory == 'Outro'
+    final categoryName = usesCustomCategory
         ? _customCategoryController.text.trim()
         : _selectedCategory;
 
@@ -162,9 +218,10 @@ class _DesktopTransactionContentState extends State<DesktopTransactionContent> {
       return;
     }
 
-    // Recarrega Início e Relatórios em segundo plano, sem bloquear a
-    // confirmação nem a volta pro Início.
-    context.read<DashboardController>().load();
+    // Recarrega Relatórios em segundo plano, sem bloquear a confirmação. O
+    // Início fica a cargo de quem abriu o formulário (é quem sabe qual mês
+    // está selecionado lá) — um load() daqui, sem mês, ainda seria engolido
+    // pelo guarda de loads sobrepostos do DashboardController.
     context.read<ReportsController>().loadMonthly();
     context.read<ReportsController>().loadComparison(
       threeMonthWindows(recentMonths()).last,
@@ -205,13 +262,26 @@ class _DesktopTransactionContentState extends State<DesktopTransactionContent> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Novo lançamento',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Novo lançamento',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              if (widget.onCancel != null)
+                IconButton(
+                  tooltip: 'Fechar',
+                  onPressed: _isSaving ? null : widget.onCancel,
+                  icon: const Icon(Icons.close_rounded),
+                  color: Colors.black.withValues(alpha: 0.5),
+                ),
+            ],
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 20),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
@@ -282,36 +352,67 @@ class _DesktopTransactionContentState extends State<DesktopTransactionContent> {
                   ],
                 ),
                 const Divider(height: 40),
-                AppChoiceChips<String>(
-                  label: 'Categoria',
-                  tooltip:
-                      'Categoria da despesa ou ganho extra, usada para '
-                      'organizar os relatórios.',
-                  items: _categories,
-                  labelOf: (category) => category,
-                  selected: _selectedCategory,
-                  onSelected: (category) =>
-                      setState(() => _selectedCategory = category),
-                  activeColor: activeColor,
-                ),
-                if (_selectedCategory == 'Outro') ...[
-                  const SizedBox(height: 16),
+                if (_isExpense) ...[
+                  AppChoiceChips<String>(
+                    label: 'Categoria',
+                    tooltip:
+                        'Categoria da despesa, usada para organizar os '
+                        'relatórios.',
+                    items: _categories,
+                    labelOf: (category) => category,
+                    selected: _selectedCategory,
+                    onSelected: (category) =>
+                        setState(() => _selectedCategory = category),
+                    activeColor: activeColor,
+                  ),
+                  if (_selectedCategory == 'Outro') ...[
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: 260,
+                      child: AppTextField(
+                        label: 'Nome da categoria',
+                        tooltip:
+                            'Nome da categoria personalizada, usado quando '
+                            'nenhuma das opções acima se aplica.',
+                        controller: _customCategoryController,
+                        hintText: 'Nome da categoria',
+                        textCapitalization: TextCapitalization.sentences,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                        focusColor: activeColor,
+                      ),
+                    ),
+                  ],
+                ] else ...[
+                  // Receita: campo livre igual ao mobile e, logo abaixo,
+                  // "Receita" e "Extra" como atalhos que preenchem o campo.
                   SizedBox(
                     width: 260,
                     child: AppTextField(
-                      label: 'Nome da categoria',
+                      label: 'Categoria',
                       tooltip:
-                          'Nome da categoria personalizada, usado quando '
-                          'nenhuma das opções acima se aplica.',
+                          'Categoria da receita, usada para organizar os '
+                          'relatórios.',
                       controller: _customCategoryController,
                       hintText: 'Nome da categoria',
                       textCapitalization: TextCapitalization.sentences,
+                      onChanged: (_) => setState(() {}),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                       ),
                       focusColor: activeColor,
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  AppChoiceChips<String>(
+                    items: _incomeCategories,
+                    labelOf: (category) => category,
+                    selected: _incomeCategory,
+                    onSelected: _applyIncomeCategory,
+                    activeColor: activeColor,
                   ),
                 ],
                 const SizedBox(height: 24),
@@ -356,12 +457,34 @@ class _DesktopTransactionContentState extends State<DesktopTransactionContent> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                AppButton(
-                  label: 'Salvar lançamento',
-                  isLoading: _isSaving,
-                  onPressed: _save,
-                  color: activeColor,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                // Cada botão ocupa metade da linha, então cancelar e salvar
+                // têm exatamente a mesma largura.
+                Row(
+                  children: [
+                    if (widget.onCancel != null) ...[
+                      Expanded(
+                        child: AppButton(
+                          label: 'Cancelar',
+                          onPressed: _isSaving ? null : widget.onCancel,
+                          // Fundo branco com a borda na mesma cor do salvar
+                          // (verde no ganho, vermelho na despesa).
+                          variant: AppButtonVariant.outlined,
+                          color: activeColor,
+                          fullWidth: true,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      child: AppButton(
+                        label: 'Salvar lançamento',
+                        isLoading: _isSaving,
+                        onPressed: _save,
+                        color: activeColor,
+                        fullWidth: true,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

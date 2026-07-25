@@ -1,17 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/models.dart';
-import '../../state/auth_controller.dart';
-import '../../state/dashboard_controller.dart';
-import '../../theme/app_theme.dart';
-import '../../utils/month_utils.dart';
-import '../../widgets/app_choice_chips.dart';
-import '../../widgets/app_dropdown_field.dart';
-import '../../widgets/async_state_view.dart';
+import '../../core/models/models.dart';
+import '../../core/state/auth_controller.dart';
+import '../../core/state/dashboard_controller.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/utils/month_utils.dart';
+import '../../core/widgets/app_choice_chips.dart';
+import '../../core/widgets/app_dropdown_field.dart';
+import '../../core/widgets/async_state_view.dart';
+import 'desktop_transaction_content.dart';
 
 String _formatCurrency(double value) => 'R\$ ${value.toStringAsFixed(2)}';
 
 const _activityFilters = ['Todos', 'Ganhos', 'Despesas'];
+
+/// Altura do seletor de mês e dos botões de ação do cabeçalho.
+const _actionsHeight = 42.0;
+
+/// O padding vertical do tema (16) não cabe em [_actionsHeight]; aqui só ele
+/// é substituído, o resto do estilo continua vindo do tema.
+const _compactButtonPadding = ButtonStyle(
+  padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 24)),
+);
 
 /// Painel "Início" do modo desktop: saudação, cartões de resumo do mês e a
 /// tabela de últimas movimentações (Descrição / Categoria / Data / Valor).
@@ -40,6 +50,15 @@ class _DesktopHomeContentState extends State<DesktopHomeContent> {
     if (month == null) return;
     setState(() => _selectedMonth = month);
     context.read<DashboardController>().load(month: month);
+  }
+
+  /// Novo lançamento (despesa / ganho extra) — no desktop ele é um modal
+  /// aberto daqui, em vez de uma aba própria na barra lateral. Ao salvar,
+  /// recarrega o Início já no mês que está selecionado na tela.
+  Future<void> _openTransactionDialog() async {
+    final saved = await showDesktopTransactionDialog(context);
+    if (saved != true || !mounted) return;
+    context.read<DashboardController>().load(month: _selectedMonth);
   }
 
   bool _isSameDay(DateTime a, DateTime b) =>
@@ -100,16 +119,30 @@ class _DesktopHomeContentState extends State<DesktopHomeContent> {
                 ),
               ),
             ),
-            _buildMonthDropdown(),
-            const SizedBox(width: 12),
-            OutlinedButton(
-              onPressed: () => widget.onNavigate(3),
-              child: const Text('Nova despesa'),
-            ),
-            const SizedBox(width: 12),
-            ElevatedButton(
-              onPressed: () => widget.onNavigate(2),
-              child: const Text('Nova venda'),
+            // Seletor de mês e os dois botões compartilham a mesma altura
+            // compacta: o SizedBox define o valor e o stretch faz os três
+            // ocuparem exatamente essa altura.
+            SizedBox(
+              height: _actionsHeight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildMonthDropdown(),
+                  const SizedBox(width: 12),
+                  OutlinedButton(
+                    onPressed: _openTransactionDialog,
+                    style: _compactButtonPadding,
+                    child: const Text('Novo lançamento'),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () => widget.onNavigate(2),
+                    style: _compactButtonPadding,
+                    child: const Text('Nova venda'),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -257,6 +290,7 @@ class _DesktopHomeContentState extends State<DesktopHomeContent> {
           items: _months,
           labelOf: monthLabel,
           onChanged: _onMonthChanged,
+          dense: true,
         ),
       ],
     );
@@ -438,9 +472,7 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: highlighted
-            ? AppTheme.primaryLightColor.withValues(alpha: 0.5)
-            : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: highlighted

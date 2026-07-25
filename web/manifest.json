@@ -1,11 +1,11 @@
 {
-    "name": "mari",
-    "short_name": "mari",
+    "name": "Mari",
+    "short_name": "Mari",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Gestão para lojas de produtos infantis: registre vendas, controle entradas e saídas de dinheiro, acompanhe o estoque e veja relatórios mensais do seu negócio.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

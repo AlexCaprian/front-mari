@@ -1,14 +1,23 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../state/auth_controller.dart';
-import '../theme/app_theme.dart';
-import '../widgets/app_button.dart';
-import '../widgets/app_text_field.dart';
-import '../widgets/loading_overlay.dart';
-import '../widgets/responsive_layout.dart';
+import '../core/state/auth_controller.dart';
+import '../core/theme/app_theme.dart';
+import '../core/widgets/app_button.dart';
+import '../core/widgets/app_text_field.dart';
+import '../core/widgets/loading_overlay.dart';
+import '../core/widgets/responsive_layout.dart';
 import 'code_generated_screen.dart';
-import 'dashboard_screen.dart';
+import 'mobile/dashboard_screen.dart';
+
+/// Autofill (salvar/preencher o código pelo gerenciador de senhas do sistema)
+/// só faz sentido no Android/iOS — no desktop e na web deixamos o fluxo como
+/// está, sem disparar prompts de "salvar senha".
+bool get _isMobilePlatform =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS);
 
 /// Formata a entrada do usuário para a máscara "MC-XXXX-XXXX" automaticamente
 class CodeInputFormatter extends TextInputFormatter {
@@ -111,6 +120,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       return;
     }
 
+    // Código válido: pede ao sistema para salvar/atualizar a credencial no
+    // gerenciador de senhas (Google Password Manager / Keychain), pra que nos
+    // próximos acessos o campo seja preenchido automaticamente.
+    if (_isMobilePlatform) {
+      TextInput.finishAutofillContext();
+    }
+
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => const DashboardScreen()),
     );
@@ -155,206 +171,190 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     final isLoading = context.watch<AuthController>().isLoading;
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 32),
+      child: AutofillGroup(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: 32),
 
-            // 1. Logo circular "R$"
-            Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  'R\$',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontSize: 34,
-                    fontWeight: FontWeight.bold,
-                  ),
+              // 1. Logo do app (largura fixa, altura se ajusta pela proporção)
+              Image.asset('assets/image/logo_color_light.png', width: 100),
+              const SizedBox(height: 16),
+
+              // 2. Título da Aplicação
+              Text(
+                'Mari',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 8),
 
-            // 2. Título da Aplicação
-            Text(
-              'Mari',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-
-            // 3. Subtítulo
-            Text(
-              'Suas vendas e despesas,\nsimples de organizar',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.black.withValues(alpha: 0.6),
-                height: 1.4,
+              // 3. Subtítulo
+              Text(
+                'Suas vendas e despesas,\nsimples de organizar',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  height: 1.4,
+                ),
               ),
-            ),
-            const SizedBox(height: 48),
+              const SizedBox(height: 48),
 
-            // 4. Botão "Criar minha conta"
-            AppButton(
-              label: 'Criar minha conta',
-              isLoading: isLoading,
-              onPressed: _handleCreateAccount,
-              fullWidth: true,
-            ),
-            const SizedBox(height: 8),
-
-            // 5. Subtexto descritivo do botão
-            Text(
-              'gera um código só seu',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.black.withValues(alpha: 0.5),
-                fontWeight: FontWeight.w500,
+              // 4. Botão "Criar minha conta"
+              AppButton(
+                label: 'Criar minha conta',
+                isLoading: isLoading,
+                onPressed: _handleCreateAccount,
+                fullWidth: true,
               ),
-            ),
-            const SizedBox(height: 36),
+              const SizedBox(height: 8),
 
-            // 6. Divisor "ou"
-            Row(
-              children: [
-                Expanded(
-                  child: Divider(
-                    color: Colors.black.withValues(alpha: 0.12),
-                    thickness: 1.2,
-                  ),
+              // 5. Subtexto descritivo do botão
+              Text(
+                'gera um código só seu',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  fontWeight: FontWeight.w500,
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Text(
-                    'ou',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.black.withValues(alpha: 0.4),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Divider(
-                    color: Colors.black.withValues(alpha: 0.12),
-                    thickness: 1.2,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 36),
+              ),
+              const SizedBox(height: 36),
 
-            // 7. Seção de login com código
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+              // 6. Divisor "ou"
+              Row(
                 children: [
-                  Text(
-                    'Já tenho uma conta — digite o código',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: Colors.black.withValues(alpha: 0.8),
+                  Expanded(
+                    child: Divider(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      thickness: 1.2,
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Tooltip(
-                    message:
-                        'Código usado para entrar na sua conta em outro '
-                        'aparelho ou recuperar seus dados.',
-                    triggerMode: TooltipTriggerMode.tap,
-                    child: Icon(
-                      Icons.info_outline,
-                      size: 16,
-                      color: Colors.black.withValues(alpha: 0.4),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Text(
+                      'ou',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Divider(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      thickness: 1.2,
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 36),
 
-            // Campo de entrada do código
-            AppTextField(
-              controller: _codeController,
-              inputFormatters: [CodeInputFormatter()],
-              keyboardType: TextInputType.text,
-              autocorrect: false,
-              enableSuggestions: false,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2.0,
-              ),
-              hintText: 'MC-XXXX-XXXX',
-              filled: true,
-              fillColor: Colors.white,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Por favor, insira o código de acesso.';
-                }
-                if (value.length < 12) {
-                  return 'Código incompleto. Formato: MC-XXXX-XXXX';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // Botão "Entrar com código"
-            AppButton(
-              variant: AppButtonVariant.outlined,
-              label: 'Entrar com código',
-              isLoading: isLoading,
-              onPressed: _isButtonEnabled ? _handleLogin : null,
-              fullWidth: true,
-            ),
-            const SizedBox(height: 48),
-
-            // 8. Card de Informação inferior "COMO FUNCIONA"
-            Container(
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryLightColor.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.12),
-                  width: 1,
+              // 7. Seção de login com código
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Já tenho uma conta — digite o código',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Colors.black.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Tooltip(
+                      message:
+                          'Código usado para entrar na sua conta em outro '
+                          'aparelho ou recuperar seus dados.',
+                      triggerMode: TooltipTriggerMode.tap,
+                      child: Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: Colors.black.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'COMO FUNCIONA',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'O código identifica sua conta. Use o mesmo código em outro celular para ver os mesmos dados.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.black.withValues(alpha: 0.7),
-                      height: 1.4,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 12),
+
+              // Campo de entrada do código
+              AppTextField(
+                controller: _codeController,
+                inputFormatters: [CodeInputFormatter()],
+                keyboardType: TextInputType.text,
+                autocorrect: false,
+                enableSuggestions: false,
+                autofillHints: const [AutofillHints.password],
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2.0,
+                ),
+                hintText: 'MC-XXXX-XXXX',
+                filled: true,
+                fillColor: Colors.white,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Por favor, insira o código de acesso.';
+                  }
+                  if (value.length < 12) {
+                    return 'Código incompleto. Formato: MC-XXXX-XXXX';
+                  }
+                  return null;
+                },
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+
+              // Botão "Entrar com código"
+              AppButton(
+                variant: AppButtonVariant.outlined,
+                label: 'Entrar com código',
+                isLoading: isLoading,
+                onPressed: _isButtonEnabled ? _handleLogin : null,
+                fullWidth: true,
+              ),
+              const SizedBox(height: 48),
+
+              // 8. Card de Informação inferior "COMO FUNCIONA"
+              Container(
+                padding: const EdgeInsets.all(16.0),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryLightColor.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.12),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'COMO FUNCIONA',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'O código identifica sua conta. Use o mesmo código em outro celular para ver os mesmos dados.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.black.withValues(alpha: 0.7),
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -392,24 +392,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 84,
-            height: 84,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: const Center(
-              child: Text(
-                'R\$',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 34,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
+          // Logo do app (largura fixa, altura se ajusta pela proporção)
+          Image.asset('assets/image/logo_white.png', width: 120),
           const SizedBox(height: 20),
           const Text(
             'Mari',
